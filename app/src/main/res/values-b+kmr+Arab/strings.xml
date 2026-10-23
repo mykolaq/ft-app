@@ -47,6 +47,8 @@
     <string name="aa_help_4_body">FT ب خۆ دێ پێڤە گرێ دەت. پشتی ریستارتکرنا مۆبایلی یان نویبوونا Android Auto، پێنگاڤێن 1، 3 و 4 جارەکا دی بکە.</string>
     <string name="aa_match_car">ب قەبارێ شاشەیا ترومبێلێ نیشان بدە</string>
     <string name="aa_controls_left">کونترۆلێن وی بدانە لایێ چەپێ</string>
+    <string name="aa_cluster_navigation">رێنیشاندان ل سەر پانێلا ئامیران</string>
+    <string name="aa_cluster_navigation_body">زڤڕینێن Android Auto ل سەر پانێلا ئامیران یان HUD نیشان بدە، ئەگەر ترومبێل پشتەڤانیێ بکەت. گوهۆڕین دەستبجێ جێبەجێ دبن.</string>
     <string name="aa_port">پۆرتێ TCP</string>
     <string name="aa_width">پانیا ڤیدیۆیێ</string>
     <string name="aa_height">بلندیا ڤیدیۆیێ</string>
@@ -96,6 +98,15 @@
     <string name="quiet_on_body">FT ب خۆ دەنگێ ئەپێن دی دگەهینیتە ترومبێلێ، بێی کو مۆبایل چ پسیاران بکەت. بۆ گرتنا ڤێ، ڤێ جێبەجێ بکە:</string>
     <string name="quiet_off_body">Android ل سەر مۆبایلی پسیارێ دکەت بەری کو FT بشێت دەنگێ ئەپێن دی بگەهینیتە ترومبێلێ. ئێک جار ڤێ ژ کۆمپیوتەرەکێ جێبەجێ بکە کو USB debugging تێدا ڤەکری بیت، ئیدی پسیارێ ناکەت:</string>
     <string name="picture_defaults_body">FT وێنەی ب هەمان قەبارێ شاشەیا ترومبێلێ دهنێریت، کو ل کۆرۆلایێ \u20661920×720\u2069 ە، ب 3 Mbps داتایێن وێنەی. ئەڤە پترینە یا ل سەر کۆرۆلایێ هاتیە تاقیکرن، و ب 30 فرەیمان د چرکەیەکێ دا باش کار کر. FT ب 20 فرەیمان د چرکەیەکێ دا دەست پێ دکەت و دویڤ وێ دچیت یا ترومبێل داخواز دکەت.</string>
+    <string name="picture_stream_now">نوکە بۆ ترومبێلێ دهێتە هنارتن</string>
+    <string name="picture_stream_saved">پاشەکەوتکری بۆ گرێدانا بهێت</string>
+    <string name="picture_stream_using_saved">رێکخستنێن پاشەکەوتکری دهێنە بکارئینان</string>
+    <string name="picture_stream_inactive">نوکە چ ڤیدیۆ ناهێتە هنارتن</string>
+    <string name="picture_stream_unsaved">هێشتا چ رێکخستن نەهاتیە پاشەکەوتکرن. ب ترومبێلێ ڤە گرێ بدە بۆ هەلبژارتن و پاشەکەوتکرنا رێکخستنان.</string>
+    <string name="picture_stream_summary">%1$d × %2$d · هەتا %3$d فرەیم د چرکەیەکێ دا · %4$s Mbps</string>
+    <string name="picture_stream_mode">قەبارە: %1$s · رێژەیا فرەیمان: %2$s</string>
+    <string name="picture_stream_manual">دەستی</string>
+    <string name="picture_stream_note">رێژەیا فرەیمان سنوورێ سەری یە و رێژەیا داتایێ ئامانجە. FT ب رێکخستنێن پاشەکەوتکری بۆ هەمان شاشە و رێکخستنان دەست پێ دکەت، پاشی داخوازێن نوی یێن ترومبێلێ جێبەجێ دکەت. سنوورێن دەمی ژبەر گەرمیێ ناهێنە پاشەکەوتکرن. گوهۆڕینا رێکخستنێن ڤیدیۆیێ یان رێکخستنەڤە رێکخستنێن پاشەکەوتکری ژێ دبەت.</string>
     <string name="picture_changed_body">گوهۆڕین دێ جارا بهێت جێبەجێ بن، دەمێ ترومبێل گرێ ددەت.</string>
     <string name="picture_size_label">ئەو قەبارێ بۆ ترومبێلێ دهێتە هنارتن</string>
     <string name="picture_size_car">یێ ترومبێلێ</string>

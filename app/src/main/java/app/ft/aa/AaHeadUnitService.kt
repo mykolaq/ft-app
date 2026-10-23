@@ -59,6 +59,7 @@ class AaHeadUnitService : Service() {
             private set
 
         @Volatile var onCarMicWanted: ((Boolean) -> Unit)? = null
+        @Volatile var onNavigation: ((app.ft.core.NavigationInfo) -> Unit)? = null
 
         fun start(context: Context, bluetooth: Boolean) {
             if (!FTApp.instance.prefs.autoConnect) {

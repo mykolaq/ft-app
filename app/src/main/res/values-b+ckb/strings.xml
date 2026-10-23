@@ -47,6 +47,8 @@
     <string name="aa_help_4_body">FT خۆی پێیەوە پەیوەست دەبێت. دوای ڕیستارتکردنی مۆبایل یان نوێبوونەوەی Android Auto، هەنگاوەکانی 1 و 3 و 4 دووبارە بکەرەوە.</string>
     <string name="aa_match_car">بە قەبارەی شاشەی ئۆتۆمبێلەکە پیشانی بدە</string>
     <string name="aa_controls_left">کۆنترۆڵەکانی بخە لای چەپ</string>
+    <string name="aa_cluster_navigation">ڕێنمایی ڕێگا لەسەر پانێڵی ئامێرەکان</string>
+    <string name="aa_cluster_navigation_body">سووڕانەوەکانی Android Auto لەسەر پانێڵی ئامێرەکان یان HUD پیشان بدە، ئەگەر ئۆتۆمبێلەکە پشتگیری بکات. گۆڕانکارییەکان دەستبەجێ جێبەجێ دەبن.</string>
     <string name="aa_port">پۆرتی TCP</string>
     <string name="aa_width">پانیی ڤیدیۆ</string>
     <string name="aa_height">بەرزیی ڤیدیۆ</string>
@@ -96,6 +98,15 @@
     <string name="quiet_on_body">FT خۆی دەنگی ئەپەکانی تر دەگەیەنێتە ئۆتۆمبێل، بێ ئەوەی مۆبایلەکە هیچ پرسیارێک بکات. بۆ کوژاندنەوەی، ئەمە جێبەجێ بکە:</string>
     <string name="quiet_off_body">Android لەسەر مۆبایلەکە پرسیار دەکات پێش ئەوەی FT بتوانێت دەنگی ئەپەکانی تر بگەیەنێتە ئۆتۆمبێل. یەک جار ئەمە لە کۆمپیوتەرێکەوە جێبەجێ بکە کە USB debuggingی هەڵکرابێت، ئیتر پرسیار ناکات:</string>
     <string name="picture_defaults_body">FT وێنە بە هەمان قەبارەی شاشەی ئۆتۆمبێلەکە دەنێرێت، کە لە کۆرۆلادا \u20661920×720\u2069ە، بە 3 Mbps داتای وێنە. ئەمە زۆرترینە کە لەسەر کۆرۆلا تاقیکراوەتەوە و بە 30 فرەیم لە چرکەیەکدا بە باشی کاری کرد. FT بە 20 فرەیم لە چرکەیەکدا دەست پێدەکات و شوێن ئەوە دەکەوێت کە ئۆتۆمبێلەکە داوای دەکات.</string>
+    <string name="picture_stream_now">ئێستا بۆ ئۆتۆمبێل دەنێردرێت</string>
+    <string name="picture_stream_saved">پاشەکەوتکراو بۆ پەیوەستبوونی داهاتوو</string>
+    <string name="picture_stream_using_saved">ڕێکخستنە پاشەکەوتکراوەکان بەکاردێن</string>
+    <string name="picture_stream_inactive">ئێستا هیچ ڤیدیۆیەک نانێردرێت</string>
+    <string name="picture_stream_unsaved">هێشتا هیچ ڕێکخستنێک پاشەکەوت نەکراوە. بە ئۆتۆمبێلەکەوە پەیوەست ببە بۆ هەڵبژاردن و پاشەکەوتکردنی ڕێکخستنەکان.</string>
+    <string name="picture_stream_summary">%1$d × %2$d · تا %3$d فرەیم لە چرکەیەکدا · %4$s Mbps</string>
+    <string name="picture_stream_mode">قەبارە: %1$s · ڕێژەی فرەیم: %2$s</string>
+    <string name="picture_stream_manual">دەستی</string>
+    <string name="picture_stream_note">ڕێژەی فرەیم سنووری سەرەوەیە و ڕێژەی داتا ئامانجە. FT بە ڕێکخستنە پاشەکەوتکراوەکان بۆ هەمان شاشە و ڕێکخستن دەست پێدەکات، پاشان داواکارییە نوێکانی ئۆتۆمبێل جێبەجێ دەکات. سنووری کاتی بەهۆی گەرمی پاشەکەوت ناکرێت. گۆڕینی ڕێکخستنەکانی ڤیدیۆ یان ڕێکخستنەوە، ڕێکخستنە پاشەکەوتکراوەکان دەسڕێتەوە.</string>
     <string name="picture_changed_body">گۆڕانکارییەکان لە پەیوەستبوونی داهاتووی ئۆتۆمبێلەکەدا جێبەجێ دەبن.</string>
     <string name="picture_size_label">ئەو قەبارەیەی بۆ ئۆتۆمبێل دەنێردرێت</string>
     <string name="picture_size_car">هی ئۆتۆمبێلەکە</string>

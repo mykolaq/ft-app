@@ -44,6 +44,7 @@ class AaSession(
     private val _deviceName = MutableStateFlow("")
     val deviceName: StateFlow<String> = _deviceName
     private val openChannels = HashSet<Int>()
+    private val navigation = AaNavigation()
     private val mic = AaMicrophone { pcm -> sendMicrophone(pcm) }
     @Volatile private var micWanted = false
     @Volatile private var carMicAt = 0L
@@ -76,6 +77,7 @@ class AaSession(
         }
         CarAudioBus.end(AaProtocol.CH_SPEECH_AUDIO)
         CarAudioBus.end(AaProtocol.CH_SYSTEM_AUDIO)
+        synchronized(navigation) { AaHeadUnitService.onNavigation?.invoke(navigation.reset()) }
         runCatching { input.close() }
         runCatching { output.close() }
         decoder.stop()
@@ -119,6 +121,11 @@ class AaSession(
             AaProtocol.CH_SENSOR -> handleSensor(id, body)
             AaProtocol.CH_MEDIA_AUDIO, AaProtocol.CH_SPEECH_AUDIO, AaProtocol.CH_SYSTEM_AUDIO -> handleAudioSink(m.channel, id, body)
             AaProtocol.CH_AV_INPUT -> handleAvInput(id, body)
+            AaProtocol.CH_NAVIGATION -> synchronized(navigation) {
+                if (running.get()) navigation.accept(id, body)?.let {
+                    AaHeadUnitService.onNavigation?.invoke(it)
+                }
+            }
             else -> DiagLog.d(tag, "${AaProtocol.channelName(m.channel)} msg 0x${Integer.toHexString(id)} len=${body.size}")
         }
     }
@@ -158,6 +165,10 @@ class AaSession(
                 openChannels += channel
                 DiagLog.i(tag, "channel open ${AaProtocol.channelName(channel)} (service $sid)")
                 sendEnc(channel, AaProtocol.CHANNEL_OPEN_RESPONSE, AaMessages.channelOpenResponse(), true)
+                if (channel == AaProtocol.CH_NAVIGATION) {
+                    sendEnc(channel, AaProtocol.NAV_START, ByteArray(0))
+                    DiagLog.i(tag, "instrument cluster navigation requested")
+                }
             }
             AaProtocol.PING_REQUEST -> sendEnc(AaProtocol.CH_CONTROL, AaProtocol.PING_RESPONSE, AaMessages.pingResponse(AaMessages.pingTimestamp(body)))
             AaProtocol.PING_RESPONSE -> Unit
@@ -172,7 +183,13 @@ class AaSession(
                 sendEnc(AaProtocol.CH_CONTROL, AaProtocol.BYEBYE_RESPONSE, AaMessages.byeByeResponse())
                 close("bye-bye")
             }
-            AaProtocol.CHANNEL_CLOSE_NOTIFICATION -> DiagLog.i(tag, "channel close ${AaProtocol.channelName(channel)}")
+            AaProtocol.CHANNEL_CLOSE_NOTIFICATION -> {
+                openChannels -= channel
+                if (channel == AaProtocol.CH_NAVIGATION) synchronized(navigation) {
+                    AaHeadUnitService.onNavigation?.invoke(navigation.reset())
+                }
+                DiagLog.i(tag, "channel close ${AaProtocol.channelName(channel)}")
+            }
             AaProtocol.VOICE_SESSION_NOTIFICATION -> Unit
             else -> DiagLog.w(tag, "unhandled control ${AaProtocol.controlName(id)} on ${AaProtocol.channelName(channel)}")
         }

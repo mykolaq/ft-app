@@ -47,6 +47,8 @@
     <string name="aa_help_4_body">FT подключится к нему сам. После перезагрузки телефона или обновления Android Auto повторите шаги 1, 3 и 4.</string>
     <string name="aa_match_car">Использовать размер экрана автомобиля</string>
     <string name="aa_controls_left">Разместить элементы управления слева</string>
+    <string name="aa_cluster_navigation">Подсказки на приборной панели</string>
+    <string name="aa_cluster_navigation_body">Показывать манёвры Android Auto на приборной панели или проекционном дисплее HUD, если автомобиль поддерживает эту функцию. Настройка применяется сразу.</string>
     <string name="aa_port">TCP-порт</string>
     <string name="aa_width">Ширина видео</string>
     <string name="aa_height">Высота видео</string>
@@ -95,7 +97,16 @@
     <string name="quiet_title">Передавать звук без запроса</string>
     <string name="quiet_on_body">FT сам передаёт звук других приложений в автомобиль, без запроса на телефоне. Чтобы отключить это, выполните команду:</string>
     <string name="quiet_off_body">Прежде чем FT передаст звук других приложений в автомобиль, Android запрашивает разрешение на телефоне. Выполните эту команду один раз с компьютера при включённой отладке по USB, и запросов больше не будет:</string>
-    <string name="picture_defaults_body">FT отправляет в автомобиль изображение размером с его экран (1920×720 на Corolla) и битрейтом 3 Мбит/с. Это максимум, проверенный на Corolla, и при нём она стабильно держала 30 кадров в секунду. FT начинает с 20 кадров в секунду и подстраивается под запросы автомобиля.</string>
+    <string name="picture_defaults_body">По умолчанию FT использует размер экрана автомобиля, битрейт 3 Мбит/с и автоматическую частоту кадров. Рабочие параметры потока сохраняются для следующего подключения.</string>
+    <string name="picture_stream_now">Сейчас передаётся в автомобиль</string>
+    <string name="picture_stream_saved">Сохранено для следующего подключения</string>
+    <string name="picture_stream_using_saved">Используется сохранённый профиль</string>
+    <string name="picture_stream_inactive">Видео сейчас не передаётся</string>
+    <string name="picture_stream_unsaved">Профиль ещё не сохранён. Подключитесь к автомобилю, чтобы подобрать и запомнить параметры.</string>
+    <string name="picture_stream_summary">%1$d × %2$d · до %3$d кадр/с · %4$s Мбит/с</string>
+    <string name="picture_stream_mode">Размер: %1$s · Частота кадров: %2$s</string>
+    <string name="picture_stream_manual">Вручную</string>
+    <string name="picture_stream_note">Частота кадров — предельная, битрейт — целевой. FT начинает с сохранённого профиля для того же экрана и настроек, затем учитывает новые запросы автомобиля. Временное ограничение из-за нагрева не сохраняется. Изменение видеонастроек или сброс очищает профиль.</string>
     <string name="picture_changed_body">Изменения вступят в силу при следующем подключении автомобиля.</string>
     <string name="picture_size_label">Размер для автомобиля</string>
     <string name="picture_size_car">Как у автомобиля</string>

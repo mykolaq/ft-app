@@ -47,6 +47,8 @@
     <string name="aa_help_4_body">سيتصل به FT تلقائيًا. بعد إعادة تشغيل الهاتف أو تحديث Android Auto، كرّر الخطوات 1 و3 و4.</string>
     <string name="aa_match_car">العرض بمقاس شاشة السيارة نفسها</string>
     <string name="aa_controls_left">ضع أزرار التحكم على اليسار</string>
+    <string name="aa_cluster_navigation">إرشادات الطريق على لوحة العدادات</string>
+    <string name="aa_cluster_navigation_body">عرض منعطفات Android Auto على لوحة العدادات أو شاشة العرض الأمامية HUD، إذا كانت السيارة تدعم ذلك. تسري التغييرات فورًا.</string>
     <string name="aa_port">منفذ TCP</string>
     <string name="aa_width">عرض الفيديو</string>
     <string name="aa_height">ارتفاع الفيديو</string>
@@ -96,6 +98,15 @@
     <string name="quiet_on_body">ينقل FT صوت التطبيقات الأخرى إلى السيارة تلقائيًا دون أي سؤال على الهاتف. لإيقاف ذلك، نفّذ:</string>
     <string name="quiet_off_body">يسأل Android على الهاتف قبل أن يتمكن FT من نقل صوت التطبيقات الأخرى إلى السيارة. نفّذ هذا مرة واحدة من كمبيوتر مع تفعيل تصحيح أخطاء USB، ولن يسأل بعدها:</string>
     <string name="picture_defaults_body">يرسل FT إلى السيارة صورة بمقاس شاشتها نفسها، \u20661920×720\u2069 في كورولا، بمعدل 3 ميغابت في الثانية. هذا أعلى ما جُرّب على كورولا، وقد واكبه بسلاسة بـ 30 إطارًا في الثانية. يبدأ FT بـ 20 إطارًا في الثانية ثم يتبع ما تطلبه السيارة.</string>
+    <string name="picture_stream_now">يُرسل إلى السيارة الآن</string>
+    <string name="picture_stream_saved">محفوظ للاتصال التالي</string>
+    <string name="picture_stream_using_saved">الإعدادات المحفوظة قيد الاستخدام</string>
+    <string name="picture_stream_inactive">لا يُرسل فيديو الآن</string>
+    <string name="picture_stream_unsaved">لا توجد إعدادات محفوظة بعد. اتصل بالسيارة لاختيار الإعدادات وحفظها.</string>
+    <string name="picture_stream_summary">%1$d × %2$d · حتى %3$d إطار/ث · %4$s Mbps</string>
+    <string name="picture_stream_mode">المقاس: %1$s · معدل الإطارات: %2$s</string>
+    <string name="picture_stream_manual">يدوي</string>
+    <string name="picture_stream_note">معدل الإطارات حد أقصى ومعدل البيانات هدف. يبدأ FT بالإعدادات المحفوظة للشاشة والإعدادات نفسها، ثم يتبع طلبات السيارة الجديدة. لا تُحفظ القيود المؤقتة بسبب الحرارة. تغيير إعدادات الفيديو أو إعادة الضبط يمسح الإعدادات المحفوظة.</string>
     <string name="picture_changed_body">تُطبّق التغييرات في المرة القادمة التي تتصل فيها السيارة.</string>
     <string name="picture_size_label">المقاس المرسل إلى السيارة</string>
     <string name="picture_size_car">مقاس السيارة</string>
