@@ -54,6 +54,9 @@ class AaHeadUnitService : Service() {
 
         private val _state = MutableStateFlow(AaState())
         val state: StateFlow<AaState> = _state
+        private val _music = MutableStateFlow(app.ft.core.MusicInfo())
+        val music: StateFlow<app.ft.core.MusicInfo> = _music
+        internal fun publishMusic(info: app.ft.core.MusicInfo) { _music.value = info }
         private val disconnectHelp = AaDisconnectHelp()
         val disconnectHelpPending: StateFlow<Boolean> = disconnectHelp.pending
         fun dismissDisconnectHelp() = disconnectHelp.dismiss()

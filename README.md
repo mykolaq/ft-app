@@ -41,6 +41,11 @@ Then the CarLife handshake, as Baidu does it:
 
 ## Sound
 
+Android Auto can also send song information to the car's display or instrument
+cluster. Enable **Settings → Sound → Show the song on the car's own display**;
+see [Android Auto song information](docs/android-auto-music.md) for behavior and
+vehicle checks.
+
 - Car sound goes out as 48 kHz stereo on the media channel: FT's own player, Android Auto's media and other apps' sound. The phone speaker is silenced while FT streams, and **Use the car's bluetooth for sound** plays it over Bluetooth instead.
 - When sound starts FT tells the car the way Baidu does: `MEDIA_INIT`, `MEDIA_STOP`, `MEDIA_INIT` and the music module switched on. After 750 ms of quiet it sends `MEDIA_PAUSE` and switches the music module off.
 - Spoken directions go to the car's own voice channel and the navigation module is raised around them, so the car decides how the music sits underneath (Baidu's way). It stays raised while a subscribed Android Auto route is active. **In step** and **On time** in Settings make FT mix or dip the music itself instead.

@@ -65,6 +65,7 @@ class CarLifeSession(
     var onClosed: ((reason: String) -> Unit)? = null
     var onPauseMedia: (() -> Unit)? = null
     var onMusicControl: ((play: Boolean) -> Unit)? = null
+    var onSongInfo: (() -> Unit)? = null
     private var voicePackets = 0L
     private var voiceBytes = 0L
     private var gear = -1
@@ -95,6 +96,25 @@ class CarLifeSession(
     private var videoProfileGeneration = 0
     private val feed = VideoFeed(::videoPacket, ::videoEmpty)
     private val media = MediaStream(::mediaPacket, ::moduleUpdate)
+    private var lastAaArt: ByteArray? = null
+    private var lastAaCover: ByteArray? = null
+    private val aaMusic: AaMusicRelay = AaMusicRelay(
+        dispatch = { task -> Dispatchers.IO.asExecutor().execute { task() } },
+        sendInfo = { track ->
+            val art = track.art
+            val cover = if (art != null && art.contentEquals(lastAaArt)) lastAaCover else SongArtwork.jpeg(art)
+            lastAaArt = art
+            lastAaCover = cover
+            if (matched && prefs.carSongInfo && aaMusic.allows(track)) {
+                onSongInfo?.invoke()
+                cmd(CarLifeProtocol.CMD_MEDIA_INFO, AaMusicRelay.payload(track, cover), quiet = true)
+                DiagLog.i(tag, "Android Auto song info sent to the car (cover=${cover?.size ?: 0} bytes)")
+            }
+        },
+        sendPosition = { ms -> if (matched && prefs.carSongInfo) cmd(CarLifeProtocol.CMD_MEDIA_PROGRESS_BAR,
+            ProtoWriter().int32(1, ms).toByteArray(), quiet = true) },
+        onError = { DiagLog.w(tag, "Android Auto song info write failed: ${it.message}") }
+    )
     private val navigation = NavigationRelay(
         { action, info, total ->
             if (action != 2) DiagLog.i(tag, "instrument cluster navigation action=$action turn=${NavigationRelay.turnCode(info.maneuver)}")
@@ -110,8 +130,11 @@ class CarLifeSession(
 
     fun sendNavigation(info: app.ft.core.NavigationInfo) = navigation.update(info)
     fun refreshNavigationPreference() = navigation.enable(prefs.aaClusterNavigation)
+    fun sendAaMusic(info: app.ft.core.MusicInfo) = aaMusic.update(info)
+    fun refreshMusicPreference() = aaMusic.enable(prefs.carSongInfo)
 
     fun start() {
+        refreshMusicPreference()
         DiagLog.i(tag, "session start via ${link.name}")
         link.start(scope, ::onMessage, { DiagLog.i(tag, it) }, ::linked, ::closed)
     }
@@ -139,6 +162,7 @@ class CarLifeSession(
         feed.close()
         media.forget()
         navigation.reset()
+        aaMusic.close()
         unwatchScreen()
     }
 
@@ -373,6 +397,7 @@ class CarLifeSession(
             CarLifeProtocol.CMD_VIDEO_ENCODER_START -> {
                 val mode = feed.start()
                 projecting = true
+                aaMusic.ready(true)
                 if (streamStartedAt == 0L) streamStartedAt = android.os.SystemClock.elapsedRealtime()
                 frames = 0
                 _state.value = State.Projecting(link.name, width, height, fps, streamWidth, streamHeight)
@@ -441,8 +466,12 @@ class CarLifeSession(
                 DiagLog.i(tag, "head unit asked for phone data ${ProtoReader(c.payload).messages(2).map { it.int(1, 0) }}, FT offers navigation and song info")
             }
             CarLifeProtocol.CMD_CARLIFE_DATA_SUBSCRIBE_START, CarLifeProtocol.CMD_CARLIFE_DATA_SUBSCRIBE_STOP -> {
+                val on = c.serviceId == CarLifeProtocol.CMD_CARLIFE_DATA_SUBSCRIBE_START
+                if (ProtoReader(c.payload).messages(2).any { it.int(1, -1) == SUBSCRIBE_MUSIC }) {
+                    aaMusic.subscribe(on)
+                    DiagLog.i(tag, "song info subscription: $on")
+                }
                 if (ProtoReader(c.payload).messages(2).any { it.int(1, -1) == SUBSCRIBE_NAVIGATION }) {
-                    val on = c.serviceId == CarLifeProtocol.CMD_CARLIFE_DATA_SUBSCRIBE_START
                     navigation.subscribe(on)
                     DiagLog.i(tag, "instrument cluster navigation subscription: $on")
                 }

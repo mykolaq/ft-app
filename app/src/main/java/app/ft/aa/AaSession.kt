@@ -48,6 +48,7 @@ class AaSession(
             runCatching { CarAudioBus.end(AaProtocol.CH_SPEECH_AUDIO) }
             runCatching { CarAudioBus.end(AaProtocol.CH_SYSTEM_AUDIO) }
             runCatching { synchronized(navigation) { AaHeadUnitService.onNavigation?.invoke(navigation.reset()) } }
+            synchronized(music) { AaHeadUnitService.publishMusic(music.reset()) }
             try { decoder.reset() } finally { onClosed(reason) }
         }
     )
@@ -65,6 +66,7 @@ class AaSession(
     val deviceName: StateFlow<String> = _deviceName
     private val openChannels = HashSet<Int>()
     private val navigation = AaNavigation()
+    private val music = AaMusic()
     private val mic = AaMicrophone { pcm -> sendMicrophone(pcm) }
     @Volatile private var micWanted = false
     @Volatile private var carMicAt = 0L
@@ -138,6 +140,9 @@ class AaSession(
             AaProtocol.CH_SENSOR -> handleSensor(id, body)
             AaProtocol.CH_MEDIA_AUDIO, AaProtocol.CH_SPEECH_AUDIO, AaProtocol.CH_SYSTEM_AUDIO -> handleAudioSink(m.channel, id, body)
             AaProtocol.CH_AV_INPUT -> handleAvInput(id, body)
+            AaProtocol.CH_MEDIA_STATUS -> synchronized(music) {
+                if (lifecycle.running) music.accept(id, body)?.let { AaHeadUnitService.publishMusic(it) }
+            }
             AaProtocol.CH_NAVIGATION -> synchronized(navigation) {
                 if (lifecycle.running) navigation.accept(id, body)?.let {
                     AaHeadUnitService.onNavigation?.invoke(it)
@@ -205,6 +210,9 @@ class AaSession(
                 openChannels -= channel
                 if (channel == AaProtocol.CH_NAVIGATION) synchronized(navigation) {
                     AaHeadUnitService.onNavigation?.invoke(navigation.reset())
+                }
+                if (channel == AaProtocol.CH_MEDIA_STATUS) synchronized(music) {
+                    AaHeadUnitService.publishMusic(music.reset())
                 }
                 DiagLog.i(tag, "channel close ${AaProtocol.channelName(channel)}")
             }

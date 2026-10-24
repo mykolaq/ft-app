@@ -224,6 +224,7 @@ class CarLifeService : Service() {
     private var session: CarLifeSession? = null
     private val navigationPreferenceListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         if (key == "aaClusterNavigation" || key == null) scope.launch { session?.refreshNavigationPreference() }
+        if (key == "carSongInfo" || key == null) scope.launch { session?.refreshMusicPreference() }
     }
     private var wifiLink: WifiChannelLink? = null
     private var usbLink: AccessoryLink? = null
@@ -234,6 +235,7 @@ class CarLifeService : Service() {
     @Volatile private var testCableServer: java.net.ServerSocket? = null
     private var finder: CarFinder? = null
     private var stateJob: Job? = null
+    private var musicJob: Job? = null
     @Volatile private var mirrorJob: Job? = null
     private var ipJob: Job? = null
     private var aaWatch: Job? = null
@@ -959,6 +961,8 @@ class CarLifeService : Service() {
         gearForget()
         stateJob?.cancel()
         stateJob = null
+        musicJob?.cancel()
+        musicJob = null
         wifiLink?.stop()
         wifiLink = null
         usbLink?.stop()
@@ -1128,6 +1132,7 @@ class CarLifeService : Service() {
         AaHeadUnitService.onNavigation = { info -> s.sendNavigation(info) }
         s.onPauseMedia = { carMusic(false) }
         s.onMusicControl = { play -> carMusic(play) }
+        s.onSongInfo = { songInfoAt = android.os.SystemClock.elapsedRealtime() }
         s.onClosed = { reason ->
             DiagLog.i(tag, "link closed: $reason")
             val sinceSong = android.os.SystemClock.elapsedRealtime() - songInfoAt
@@ -1147,6 +1152,8 @@ class CarLifeService : Service() {
             updateBeacon()
             if (l === usbLink) scope.launch(Dispatchers.Main) { if (l === usbLink) usbGone(reason) }
         }
+        musicJob?.cancel()
+        musicJob = scope.launch { AaHeadUnitService.music.collect { s.sendAaMusic(it) } }
         stateJob?.cancel()
         stateJob = scope.launch {
             s.state.collect { st ->
@@ -2283,9 +2290,12 @@ class CarLifeService : Service() {
     private suspend fun tellCarTheSong(t: Track) {
         val s = session ?: return
         if (!app.prefs.carSongInfo || !CarPlayer.toCar) return
+        if (AaHeadUnitService.music.value.let { it.playing && it.track != null }) return
         val art = MediaLibrary.artBytes(this, t, 240)?.let { big ->
             if (big.size <= 24_000) big else MediaLibrary.artBytes(this, t, 160)
         }?.takeIf { it.size <= 30_000 } ?: placeholderCover
+        if (session !== s || !app.prefs.carSongInfo || !CarPlayer.toCar) return
+        if (AaHeadUnitService.music.value.let { it.playing && it.track != null }) return
         val st = CarPlayer.state.value
         songInfoAt = android.os.SystemClock.elapsedRealtime()
         runCatching { s.sendSong(t.title, t.artist, t.album, art, t.durationMs, st.index, st.count, t.id.toString()) }
@@ -2293,6 +2303,7 @@ class CarLifeService : Service() {
     }
 
     private fun songPosition(st: CarPlayer.State) {
+        if (AaHeadUnitService.music.value.let { it.playing && it.track != null }) return
         val t = st.track ?: return
         if (t.video || !st.playing || !st.toCar || !app.prefs.carSongInfo) return
         val now = android.os.SystemClock.elapsedRealtime()
