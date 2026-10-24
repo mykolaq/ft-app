@@ -54,6 +54,9 @@ class AaHeadUnitService : Service() {
 
         private val _state = MutableStateFlow(AaState())
         val state: StateFlow<AaState> = _state
+        private val disconnectHelp = AaDisconnectHelp()
+        val disconnectHelpPending: StateFlow<Boolean> = disconnectHelp.pending
+        fun dismissDisconnectHelp() = disconnectHelp.dismiss()
         @Volatile var current: AaSession? = null
             private set
         @Volatile var micReady = false
@@ -80,6 +83,8 @@ class AaHeadUnitService : Service() {
         }
 
         fun stop(context: Context) {
+            // Suppress a concurrent socket failure before the asynchronous stop intent arrives.
+            disconnectHelp.stop()
             runCatching { context.startService(Intent(context, AaHeadUnitService::class.java).setAction(ACTION_STOP)) }
         }
     }
@@ -146,6 +151,7 @@ class AaHeadUnitService : Service() {
         val dec = AaVideoDecoder(app.prefs.aaWidth, app.prefs.aaHeight)
         decoder = dec
         val run = connections.start()
+        disconnectHelp.start()
         surfaceJob = scope.launch {
             AaVideoSink.surface.collect { s -> dec.setSurface(s) }
         }
@@ -227,6 +233,7 @@ class AaHeadUnitService : Service() {
                     runCatching { s.close() }
                     sessionJob.cancel()
                     connections.release(session) { enabled ->
+                        disconnectHelp.closed(session.hasStreamed, reason, enabled && FTApp.instance.prefs.autoConnect, session.remoteBye)
                         lastDisconnect = "${java.util.Date()} $details"
                         current = null
                         _state.update { it.copy(connected = false, phase = null, deviceName = "", selfServer = false) }
@@ -277,6 +284,7 @@ class AaHeadUnitService : Service() {
     }.getOrElse { "phone state unavailable: ${it.javaClass.simpleName}" }
 
     private fun shutdown() {
+        disconnectHelp.stop()
         val closing = connections.stop()
         runCatching { server?.close() }
         server = null

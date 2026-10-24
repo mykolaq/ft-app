@@ -57,6 +57,10 @@ class AaSession(
     private var mediaFrames = 0L
     private val _phase = MutableStateFlow(Phase.CONNECTED)
     val phase: StateFlow<Phase> = _phase
+    @Volatile var hasStreamed = false
+        private set
+    @Volatile var remoteBye = false
+        private set
     private val _deviceName = MutableStateFlow("")
     val deviceName: StateFlow<String> = _deviceName
     private val openChannels = HashSet<Int>()
@@ -192,6 +196,7 @@ class AaSession(
             }
             AaProtocol.NAV_FOCUS_REQUEST -> sendEnc(AaProtocol.CH_CONTROL, AaProtocol.NAV_FOCUS_NOTIFICATION, AaMessages.navFocusNotification(AaProtocol.NAV_FOCUS_PROJECTED))
             AaProtocol.BYEBYE_REQUEST -> {
+                remoteBye = true
                 DiagLog.i(tag, "phone bye-bye reason=${AaMessages.byeByeReason(body)}")
                 sendEnc(AaProtocol.CH_CONTROL, AaProtocol.BYEBYE_RESPONSE, AaMessages.byeByeResponse())
                 close("bye-bye")
@@ -223,6 +228,7 @@ class AaSession(
                 sendEnc(AaProtocol.CH_VIDEO, AaProtocol.VIDEO_FOCUS_INDICATION, AaMessages.videoFocusIndication(AaProtocol.VIDEO_FOCUS_PROJECTED, false))
             }
             AaProtocol.AV_START_INDICATION -> {
+                hasStreamed = true
                 videoSession = AaMessages.startSession(body)
                 mediaFrames = 0
                 // Surface changes can request this while holding the decoder lock.

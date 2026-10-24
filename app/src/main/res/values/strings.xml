@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources xmlns:tools="http://schemas.android.com/tools">
+<resources>
     <string name="app_name" translatable="false">FT</string>
     <string name="nav_home">Home</string>
     <string name="nav_log">Log</string>
@@ -203,17 +203,21 @@
     <string name="report_saved">Report saved in Downloads</string>
     <string name="report_send">Send the FT report</string>
     <!-- Diagnostic guidance currently falls back to English outside Russian. -->
-    <string name="report_system_help" tools:ignore="MissingTranslation">Android Auto disconnects: system report</string>
-    <string name="report_system_title" tools:ignore="MissingTranslation">Diagnose Android Auto disconnects</string>
-    <string name="report_system_intro" tools:ignore="MissingTranslation">The FT report contains FT logs. To find why Android Auto closes its connection when the phone locks or unlocks, we also need an Android system report. Enable logging before reproducing the problem.</string>
-    <string name="report_system_step_aa" tools:ignore="MissingTranslation">1. Open Android Auto settings. Tap ⋮ → Developer settings and enable Force debug logging. If Developer settings is missing: scroll to Version, tap to expand it, then tap Version and permission info 10 times and accept the prompt.</string>
-    <string name="report_system_step_reproduce" tools:ignore="MissingTranslation">2. Return to FT and connect to the car. While parked, lock and unlock the phone once to reproduce the interruption. Note the time and keep the car connection active until the report is ready.</string>
-    <string name="report_system_step_android" tools:ignore="MissingTranslation">3. Immediately open the phone developer options using the button below. Select Bug report → Interactive report → Report. When collection finishes, open its notification and save or share the ZIP with the developer. Also send the FT report from the Log screen.</string>
-    <string name="report_system_open_android" tools:ignore="MissingTranslation">Open phone developer options</string>
-    <string name="report_system_developer_hint" tools:ignore="MissingTranslation">If developer options are disabled, the button opens About phone. Tap Build number 7 times there (it may be inside Version), then return to FT and press the button again. FT cannot enable Android Auto logging or collect a full system report automatically; the final taps must be made in those settings.</string>
-    <string name="report_system_enable_developer" tools:ignore="MissingTranslation">Enable developer options: tap Build number 7 times, then return to FT.</string>
-    <string name="report_system_settings_failed" tools:ignore="MissingTranslation">Open phone Settings manually and search for Developer options.</string>
-    <string name="report_system_close" tools:ignore="MissingTranslation">Close</string>
+    <string name="report_system_help">Android Auto disconnects? What to check</string>
+    <string name="report_disconnect_title">Android Auto connection interrupted</string>
+    <string name="report_disconnect_detail">If this happened unexpectedly, check the USB settings. If disconnects continue, collect a system report.</string>
+    <string name="report_system_action">What to check</string>
+    <string name="report_system_title">Android Auto disconnects</string>
+    <string name="report_system_step_usb">First check USB, even when connecting to the car over Wi-Fi. In phone developer options, open Default USB configuration and select Charging only / No data transfer instead of File transfer / Android Auto. Labels vary by phone. On an OPPO phone this resolved disconnects when unlocking. Test again in the car; a system report is only needed if the problem remains. This advice applies to wireless FT connections.</string>
+    <string name="report_system_intro">If disconnects continue: the FT report contains FT logs, but we also need an Android system report to find the cause. Enable logging before reproducing the problem.</string>
+    <string name="report_system_step_aa">1. Open Android Auto settings. Tap ⋮ → Developer settings and enable Force debug logging. If Developer settings is missing: scroll to Version, tap to expand it, then tap Version and permission info 10 times and accept the prompt.</string>
+    <string name="report_system_step_reproduce">2. Return to FT and connect to the car. While parked, repeat the action that interrupted the connection. If it happens when locking the phone, lock and unlock it once. Note the time and keep the car connection active until the report is ready.</string>
+    <string name="report_system_step_android">3. Immediately open the phone developer options using the button below. Select Bug report → Interactive report → Report. When collection finishes, open its notification and save or share the ZIP with the developer. Also send the FT report from the Log screen.</string>
+    <string name="report_system_open_android">Open phone developer options</string>
+    <string name="report_system_developer_hint">If developer options are disabled, the button opens About phone. Tap Build number 7 times there (it may be inside Version), then return to FT and press the button again. FT cannot enable Android Auto logging or collect a full system report automatically; the final taps must be made in those settings.</string>
+    <string name="report_system_enable_developer">Enable developer options: tap Build number 7 times, then return to FT.</string>
+    <string name="report_system_settings_failed">Open phone Settings manually and search for Developer options.</string>
+    <string name="report_system_close">Close</string>
     <string name="root_chip">ROOT</string>
     <string name="root_title">Root is on</string>
     <string name="root_body">Your phone is rooted and you let FT use it, so FT sets everything up by itself. Without root FT works the same, it just asks you to do these by hand.</string>

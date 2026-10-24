@@ -19,7 +19,7 @@ android {
         applicationId = "app.ft"
         minSdk = 29
         targetSdk = 36
-        versionCode = 129
+        versionCode = 130
         versionName = "3.9.17-custom"
     }
 
