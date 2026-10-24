@@ -265,3 +265,35 @@ reviewed before publication.
 The changes address retry correctness and improve evidence collection. They have
 not yet been tested in this vehicle and do not establish a fix for the first
 group-formation timeout.
+
+## Lock and unlock interruptions, 24 October
+
+The 3.9.15-custom vehicle logs show six closures of the local Android Auto
+developer-server connection on TCP 5277 while wireless CarLife continues sending
+frames to the head unit. USB-state broadcasts with `connected=false` and
+`configured=false` occur near these closures; the `unlocked` flag changes with
+the phone lock state. FT's USB-state receiver only logs these broadcasts. It
+does not close the Android Auto connection. This correlation does not establish
+which Android Auto or system component closes the local socket.
+
+No Android Auto `BYEBYE`, video-stop message or lost video surface precedes the
+observed socket failures. The supplied FT logs do not include Android Auto's
+internal reason for closing its endpoint.
+
+Version 3.9.16-custom wakes the reconnect worker immediately after a real session
+closure. Failed connection attempts use delays of 250, 500, 1000 and then
+3000 milliseconds. Session ownership remains reserved until media cleanup
+finishes; stale callbacks, pending dials and workers from an earlier service run
+cannot replace or clear a newer session. Closing a session also discards its
+codec configuration, and an old decoder output cannot publish a late frame size.
+Disconnect diagnostics include the session ID, transport, exception, duration,
+screen/keyguard state and USB flags. These changes improve recovery; they do not
+prevent the peer from closing the socket.
+
+For the vehicle test, repeat three to five lock/unlock cycles with the map and
+audio active. Note the time of any pause and export FT diagnostics immediately
+afterwards. If interruptions continue, also capture an Android system bug report
+on the phone using **Developer options > Take bug report**, then share the report
+from its completion notification. This requires no USB connection. The official
+[Android bug-report instructions](https://developer.android.com/studio/debug/bug-report)
+describe the capture process and the system logs included in the report.
