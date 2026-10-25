@@ -87,6 +87,11 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
@@ -130,11 +135,11 @@ import java.util.Calendar
 
 enum class CarView { LAUNCHER, DRAWER, BROWSER, YOUTUBE, MUSIC, VIDEOS, SUPERCAST }
 
-fun Modifier.touchZone(key: String): Modifier = composed {
+fun Modifier.touchZone(key: String, slopPx: Int = 8): Modifier = composed {
     DisposableEffect(key) { onDispose { CarTouchZones.remove(key) } }
     onGloballyPositioned { c ->
         val b = c.boundsInWindow()
-        CarTouchZones.put(key, Rect(b.left.toInt() - 8, b.top.toInt() - 8, b.right.toInt() + 8, b.bottom.toInt() + 8))
+        CarTouchZones.put(key, Rect(b.left.toInt() - slopPx, b.top.toInt() - slopPx, b.right.toInt() + slopPx, b.bottom.toInt() + slopPx))
     }
 }
 
@@ -341,7 +346,7 @@ private fun CarRoot(style: CarStyle) {
                 }
             }
             if ((state.aaOverlay || state.mirroring || view != CarView.LAUNCHER) && !castFullNow && (!state.aaOverlay || style.aaShowReturnButton)) {
-                CornerPill(style.corner) {
+                CornerPill(style.corner, compact = state.aaOverlay && style.aaCompactReturnButton) {
                     view = CarView.LAUNCHER
                     nowPlaying = false
                     CarLifeService.goHome()
@@ -383,7 +388,7 @@ private fun ShareWait(pkg: String, forSound: Boolean) {
 }
 
 @Composable
-private fun CornerPill(corner: Int, onClick: () -> Unit) {
+private fun CornerPill(corner: Int, compact: Boolean = false, onClick: () -> Unit) {
     val align = when (corner) {
         1 -> AbsoluteAlignment.TopRight
         2 -> AbsoluteAlignment.BottomLeft
@@ -391,16 +396,37 @@ private fun CornerPill(corner: Int, onClick: () -> Unit) {
         else -> AbsoluteAlignment.TopLeft
     }
     Box(Modifier.fillMaxSize().padding(CAR_EDGE), contentAlignment = align) {
-        Surface(
-            onClick = onClick,
-            shape = RoundedCornerShape(50),
-            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.92f),
-            contentColor = MaterialTheme.colorScheme.onPrimary,
-            modifier = Modifier.size(width = 68.dp, height = CAR_ROW).touchZone("pill")
-        ) {
-            Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.KeyboardArrowLeft, contentDescription = null)
-                Text("FT", fontWeight = FontWeight.Black)
+        if (compact) {
+            val label = stringResource(R.string.aa_return_to_ft)
+            Surface(
+                onClick = onClick,
+                shape = CircleShape,
+                color = Color.Transparent,
+                contentColor = Color(0xFFF1F3F4),
+                modifier = Modifier.size(48.dp).touchZone("compact-pill", slopPx = 0).semantics {
+                    contentDescription = label
+                    role = Role.Button
+                }
+            ) {
+                Box(
+                    Modifier.fillMaxSize().padding(2.dp).background(Color(0xFF25272A), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("FT", fontSize = 16.sp, fontWeight = FontWeight.Medium, modifier = Modifier.clearAndSetSemantics {})
+                }
+            }
+        } else {
+            Surface(
+                onClick = onClick,
+                shape = RoundedCornerShape(50),
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.92f),
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(width = 68.dp, height = CAR_ROW).touchZone("pill")
+            ) {
+                Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.KeyboardArrowLeft, contentDescription = null)
+                    Text("FT", fontWeight = FontWeight.Black)
+                }
             }
         }
     }

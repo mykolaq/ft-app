@@ -47,6 +47,9 @@
     <string name="aa_help_4_body">سيتصل به FT تلقائيًا. بعد إعادة تشغيل الهاتف أو تحديث Android Auto، كرّر الخطوات 1 و3 و4.</string>
     <string name="aa_match_car">العرض بمقاس شاشة السيارة نفسها</string>
     <string name="aa_controls_left">ضع أزرار التحكم على اليسار</string>
+    <string name="aa_compact_return_button">زر FT صغير</string>
+    <string name="aa_compact_return_button_body">استخدم زر رجوع دائريًا صغيرًا وداكنًا فوق Android Auto. عند إيقاف الخيار يبقى الزر الأصلي.</string>
+    <string name="aa_return_to_ft">العودة إلى FT</string>
     <string name="aa_cluster_navigation">إرشادات الطريق على لوحة العدادات</string>
     <string name="aa_cluster_navigation_body">عرض منعطفات Android Auto على لوحة العدادات أو شاشة العرض الأمامية HUD، إذا كانت السيارة تدعم ذلك. تسري التغييرات فورًا.</string>
     <string name="aa_port">منفذ TCP</string>

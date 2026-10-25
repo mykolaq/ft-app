@@ -48,6 +48,9 @@
     <string name="aa_help_4_body">FT connects to it by itself. After the phone restarts or Android Auto updates, do steps 1, 3 and 4 again.</string>
     <string name="aa_match_car">Draw at the car\'s own size</string>
     <string name="aa_controls_left">Put its controls on the left</string>
+    <string name="aa_compact_return_button">Compact FT button</string>
+    <string name="aa_compact_return_button_body">Use a small dark round return button over Android Auto. Off keeps the original button.</string>
+    <string name="aa_return_to_ft">Return to FT</string>
     <string name="aa_cluster_navigation">Directions on the instrument cluster</string>
     <string name="aa_cluster_navigation_body">Show Android Auto turns on the instrument cluster or HUD, if the car supports it. Changes take effect immediately.</string>
     <string name="aa_port">TCP port</string>

@@ -281,6 +281,11 @@ private fun PageContent(page: SettingsPage) {
             GearSoundSetting(stringResource(R.string.gear_park_sound), p.gearParkSound, p.gearParkLevel, { p.gearParkSound = it }) { p.gearParkLevel = it }
         }
         SettingsPage.ANDROID_AUTO -> {
+            BoolSetting(stringResource(R.string.aa_compact_return_button), p.aaCompactReturnButton,
+                detail = stringResource(R.string.aa_compact_return_button_body)) {
+                p.aaCompactReturnButton = it
+                CarStyles.reload()
+            }
             BoolSetting(stringResource(R.string.aa_cluster_navigation), p.aaClusterNavigation,
                 detail = stringResource(R.string.aa_cluster_navigation_body)) { p.aaClusterNavigation = it }
             BoolSetting(stringResource(R.string.aa_show_return_button), p.aaShowReturnButton) {

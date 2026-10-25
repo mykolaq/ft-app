@@ -47,6 +47,9 @@
     <string name="aa_help_4_body">FT ب خۆ دێ پێڤە گرێ دەت. پشتی ریستارتکرنا مۆبایلی یان نویبوونا Android Auto، پێنگاڤێن 1، 3 و 4 جارەکا دی بکە.</string>
     <string name="aa_match_car">ب قەبارێ شاشەیا ترومبێلێ نیشان بدە</string>
     <string name="aa_controls_left">کونترۆلێن وی بدانە لایێ چەپێ</string>
+    <string name="aa_compact_return_button">دوگمەیا بچووک یا FT</string>
+    <string name="aa_compact_return_button_body">ل سەر Android Auto دوگمەیەکا زڤڕینێ یا بچووک و بازنەیی و تاری بکاربینە. دەمێ ڤەبژاردە دمرینیت، دوگمەیا سەرەتایی دمینیت.</string>
+    <string name="aa_return_to_ft">زڤڕین بۆ FT</string>
     <string name="aa_cluster_navigation">رێنیشاندان ل سەر پانێلا ئامیران</string>
     <string name="aa_cluster_navigation_body">زڤڕینێن Android Auto ل سەر پانێلا ئامیران یان HUD نیشان بدە، ئەگەر ترومبێل پشتەڤانیێ بکەت. گوهۆڕین دەستبجێ جێبەجێ دبن.</string>
     <string name="aa_port">پۆرتێ TCP</string>

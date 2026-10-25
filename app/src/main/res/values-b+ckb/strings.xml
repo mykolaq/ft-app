@@ -47,6 +47,9 @@
     <string name="aa_help_4_body">FT خۆی پێیەوە پەیوەست دەبێت. دوای ڕیستارتکردنی مۆبایل یان نوێبوونەوەی Android Auto، هەنگاوەکانی 1 و 3 و 4 دووبارە بکەرەوە.</string>
     <string name="aa_match_car">بە قەبارەی شاشەی ئۆتۆمبێلەکە پیشانی بدە</string>
     <string name="aa_controls_left">کۆنترۆڵەکانی بخە لای چەپ</string>
+    <string name="aa_compact_return_button">دوگمەی بچووکی FT</string>
+    <string name="aa_compact_return_button_body">لەسەر Android Auto دوگمەیەکی گەڕانەوەی بچووک و بازنەیی و تاریک بەکاربهێنە. بە ناچالاککردنی هەڵبژاردەکە دوگمەی سەرەتایی دەمێنێتەوە.</string>
+    <string name="aa_return_to_ft">گەڕانەوە بۆ FT</string>
     <string name="aa_cluster_navigation">ڕێنمایی ڕێگا لەسەر پانێڵی ئامێرەکان</string>
     <string name="aa_cluster_navigation_body">سووڕانەوەکانی Android Auto لەسەر پانێڵی ئامێرەکان یان HUD پیشان بدە، ئەگەر ئۆتۆمبێلەکە پشتگیری بکات. گۆڕانکارییەکان دەستبەجێ جێبەجێ دەبن.</string>
     <string name="aa_port">پۆرتی TCP</string>

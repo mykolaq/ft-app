@@ -78,6 +78,8 @@ With root, or once from a computer with one adb line, FT starts a small helper f
 
 ## Android Auto
 
+**Settings → Android Auto → Compact FT button** replaces the return button over Android Auto with a small dark circle. It uses the corner you already chose and takes effect immediately. The original button remains the default; other FT screens keep their usual button.
+
 The head unit speaks CarLife, not Android Auto, so FT shows **your own phone's** Android Auto on the car: it runs an Android Auto head unit inside FT, asks Android Auto to project into it, and draws that picture on the car screen with the car's touchscreen driving it. Home starts it, and it can start by itself after the car connects.
 
 Android Auto only takes FT's head unit when its own head unit server is on, and Android Auto switches that server off whenever the phone restarts or Android Auto updates. FT keeps it on: whenever the car wants Android Auto and the server is off, FT opens Android Auto's settings, taps **Start head unit server** in its menu and comes back, usually in under a second. It does this with root, or without root through FT's accessibility service (the same one the car touchscreen uses). If the phone is locked, FT does it as soon as the phone is unlocked. If Android Auto's developer settings are off, FT says so once instead of trying again and again; the help sheet shows how to switch them on.
