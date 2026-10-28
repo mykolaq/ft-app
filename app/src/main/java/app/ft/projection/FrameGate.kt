@@ -82,14 +82,14 @@ class FrameGate(
     }
 
     fun redraw() {
-        handler?.post { draw() }
+        handler?.post { requestDraw() }
     }
 
     fun wake(ms: Long) {
         awakeUntilNs = System.nanoTime() + ms * 1_000_000L
         handler?.post {
             empty = 0
-            draw()
+            requestDraw()
         }
     }
 
@@ -151,7 +151,13 @@ class FrameGate(
         fresh = true
         empty = 0
         ready = true
+        requestDraw()
+    }
+
+    // All requests run on the gate handler, including touch wakeups and redraws.
+    private fun requestDraw() {
         val h = handler ?: return
+        if (!ready) return
         val wait = lastNs + intervalNs - System.nanoTime()
         if (wait <= SLACK_NS) {
             h.removeCallbacks(tick)
@@ -164,6 +170,12 @@ class FrameGate(
     private fun onTick() {
         val h = handler ?: return
         if (!ready) return
+        val wait = lastNs + intervalNs - System.nanoTime()
+        if (wait > SLACK_NS) {
+            h.removeCallbacks(tick)
+            h.postDelayed(tick, (wait + 999_999) / 1_000_000)
+            return
+        }
         if (!fresh) {
             empty++
             if (empty > IDLE_TICKS && empty % IDLE_EVERY != 0 && System.nanoTime() >= awakeUntilNs) {

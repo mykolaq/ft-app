@@ -19,8 +19,8 @@ android {
         applicationId = "app.ft"
         minSdk = 29
         targetSdk = 36
-        versionCode = 132
-        versionName = "3.9.18-custom"
+        versionCode = 147
+        versionName = "3.9.33-iccoa-test"
     }
 
     signingConfigs {
@@ -88,4 +88,3 @@ dependencies {
     implementation("com.google.zxing:core:3.5.3")
     implementation(project(":server"))
 }
-

@@ -23,7 +23,9 @@ class SurfaceEncoder(
     private val onConfig: (ByteArray) -> Unit,
     private val onFrame: (frame: ByteArray, keyFrame: Boolean) -> Unit,
     private val gated: Boolean = false,
-    private val savePower: Boolean = false
+    private val onTimedFrame: ((ByteArray, Boolean, Long) -> Unit)? = null,
+    private val savePower: Boolean = false,
+    private val constantBitrate: Boolean = false
 ) {
     private val tag = "Encoder"
     private val fps = fps.coerceIn(1, 60)
@@ -66,7 +68,7 @@ class SurfaceEncoder(
                     surface = c.createInputSurface()
                     c.start()
                     codec = c
-                    DiagLog.i(tag, "encoder started ${width}x${height}@$fps at ${bitrate / 1000} kbps, a key picture every second, ${if (savePower) "saving power, " else ""}${c.name}${if (label == "full") "" else " ($label)"}${if (label != "full" || tuning.isEmpty()) "" else ", " + tuning.entries.joinToString { "${it.key}=${it.value}" }}")
+                    DiagLog.i(tag, "encoder started ${width}x${height}@$fps at ${bitrate / 1000} kbps, ${if (constantBitrate) "CBR, " else ""}a key picture every second, ${if (savePower) "saving power, " else ""}${c.name}${if (label == "full") "" else " ($label)"}${if (label != "full" || tuning.isEmpty()) "" else ", " + tuning.entries.joinToString { "${it.key}=${it.value}" }}")
                     return
                 } catch (t: Throwable) {
                     DiagLog.w(tag, "encoder $name refused the $label setup for ${width}x$height: ${t.javaClass.simpleName} ${t.message ?: ""}")
@@ -101,13 +103,14 @@ class SurfaceEncoder(
         setInteger(MediaFormat.KEY_FRAME_RATE, fps)
         setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
         setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
+        if (constantBitrate) setInteger(MediaFormat.KEY_BITRATE_MODE, MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR)
     }
 
     private fun tuned(tuning: Map<String, Int>): MediaFormat = base().apply {
         setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline)
         setLong(MediaFormat.KEY_REPEAT_PREVIOUS_FRAME_AFTER, 100_000L)
         setLong(MediaFormat.KEY_DURATION, 100_000L)
-        setInteger(MediaFormat.KEY_BITRATE_MODE, MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR)
+        setInteger(MediaFormat.KEY_BITRATE_MODE, if (constantBitrate) MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR else MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR)
         setInteger(MediaFormat.KEY_LEVEL, MediaCodecInfo.CodecProfileLevel.AVCLevel4)
         setInteger(MediaFormat.KEY_MAX_B_FRAMES, 0)
         if (!gated) setFloat(MediaFormat.KEY_MAX_FPS_TO_ENCODER, this@SurfaceEncoder.fps.toFloat())
@@ -155,7 +158,9 @@ class SurfaceEncoder(
                         lateNoted = SystemClock.elapsedRealtime()
                         DiagLog.w(tag, "a picture came out of the encoder $late ms after it was drawn")
                     }
-                    if (running.get()) onFrame(frame, key)
+                    if (running.get()) {
+                        onTimedFrame?.invoke(frame, key, info.presentationTimeUs) ?: onFrame(frame, key)
+                    }
                 } catch (t: Throwable) {
                     DiagLog.e(tag, "output error", t)
                 } finally {

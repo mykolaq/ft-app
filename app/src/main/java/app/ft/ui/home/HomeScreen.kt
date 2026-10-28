@@ -56,6 +56,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -90,6 +91,12 @@ import app.ft.core.RootPrep
 import app.ft.ui.components.rememberAaServerOn
 import app.ft.ui.components.StepItem
 import app.ft.carlife.CarLifeService
+import app.ft.core.CarConnection
+import app.ft.core.CarProtocol
+import app.ft.iccoa.IccoaService
+import app.ft.projection.CarControls
+import app.ft.ui.components.rememberCarProtocol
+import app.ft.ui.components.CarProtocolSetting
 import app.ft.carlife.CarLifeSession
 import app.ft.carlife.CarState
 import androidx.compose.ui.res.stringResource
@@ -102,12 +109,22 @@ fun HomeScreen(pad: PaddingValues, onOpenAccessibility: () -> Unit, onOpenOverla
     val modern = LocalModernPhoneUi.current
     val context = LocalContext.current
     val app = FTApp.instance
+    val iccoa = rememberCarProtocol() == CarProtocol.ICCOA
+    val iccoaActions = if (iccoa) rememberIccoaConnectionActions() else null
+    val iccoaState by IccoaService.state.collectAsState()
+    val screenState by CarControls.state.collectAsState()
     val car by CarLifeService.state.collectAsState()
     val disconnectHelp by AaHeadUnitService.disconnectHelpPending.collectAsState()
     var systemHelp by rememberSaveable { mutableStateOf(false) }
     if (systemHelp) SystemReportHelp(onDismiss = { systemHelp = false })
     var autoConnect by remember { mutableStateOf(app.prefs.autoConnect) }
-    LaunchedEffect(car.running) { if (car.running) autoConnect = true }
+    DisposableEffect(app.prefs) {
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == null || key == "autoConnect") autoConnect = app.prefs.autoConnect
+        }
+        app.prefs.registerListener(listener)
+        onDispose { app.prefs.unregisterListener(listener) }
+    }
     var linkMode by remember { mutableIntStateOf(app.prefs.linkMode) }
     var aaAuto by remember { mutableStateOf(app.prefs.aaAutoStart) }
     var resumed by remember { mutableIntStateOf(0) }
@@ -123,13 +140,13 @@ fun HomeScreen(pad: PaddingValues, onOpenAccessibility: () -> Unit, onOpenOverla
     val aaOwnCopy = remember(resumed) { AaInstaller.weInstalledIt(context) }
     val aaInstalled = remember(resumed) { AaInstaller.installed(context) }
 
-    val on = car.running || autoConnect
+    val on = (if (iccoa) iccoaState.running else car.running) || autoConnect
     val cable = car.usb || linkMode == 2
     val direct = !cable && linkMode == 1
     val running = car.running && if (cable) car.usb else !car.usb && car.direct == direct
     val session = car.session
-    val connected = session !is CarLifeSession.State.Idle
-    val projecting = session is CarLifeSession.State.Projecting
+    val connected = if (iccoa) iccoaState.connected else session !is CarLifeSession.State.Idle
+    val projecting = if (iccoa) connected && screenState.via == "ICCOA" && screenState.phase == CarControls.Phase.PROJECTING else session is CarLifeSession.State.Projecting
     val way = stringResource(
         when {
             car.usb -> R.string.home_way_usb
@@ -142,14 +159,21 @@ fun HomeScreen(pad: PaddingValues, onOpenAccessibility: () -> Unit, onOpenOverla
             stringResource(R.string.home_status_connected),
             stringResource(
                 when {
-                    car.aaOverlay -> R.string.home_detail_aa
-                    car.mirroring -> R.string.home_detail_app
-                    car.usb -> R.string.home_detail_ft_usb
+                    (if (iccoa) screenState.aaOverlay else car.aaOverlay) -> R.string.home_detail_aa
+                    (if (iccoa) screenState.mirroring else car.mirroring) -> R.string.home_detail_app
+                    !iccoa && car.usb -> R.string.home_detail_ft_usb
                     else -> R.string.home_detail_ft
                 }
             ),
             3
         )
+        iccoa -> when {
+            connected -> Status(stringResource(R.string.home_status_connected), iccoaState.status, 3)
+            iccoaState.connecting -> Status(stringResource(R.string.home_status_connecting), iccoaState.status, 2)
+            iccoaState.running -> Status(stringResource(R.string.home_status_waiting), iccoaState.status.ifBlank { stringResource(R.string.iccoa_home_setup) }, 1)
+            on -> Status(stringResource(R.string.home_status_starting), iccoaState.status.ifBlank { stringResource(R.string.iccoa_home_setup) }, 1)
+            else -> Status(stringResource(R.string.home_status_off), stringResource(R.string.home_detail_off), 0)
+        }
         connected -> Status(stringResource(R.string.home_status_connecting), stringResource(if (car.usb) R.string.home_detail_starting_usb else R.string.home_detail_starting), 2)
         car.running -> Status(stringResource(R.string.home_status_waiting), way, 1)
         on -> Status(stringResource(R.string.home_status_starting), way, 1)
@@ -160,7 +184,7 @@ fun HomeScreen(pad: PaddingValues, onOpenAccessibility: () -> Unit, onOpenOverla
         if (value == linkMode) return
         linkMode = value
         app.prefs.linkMode = value
-        if (car.running) CarLifeService.startAuto(context)
+        if (car.running) CarConnection.startAuto(context)
     }
 
     LazyColumn(
@@ -170,8 +194,9 @@ fun HomeScreen(pad: PaddingValues, onOpenAccessibility: () -> Unit, onOpenOverla
     ) {
         item {
             StatusCard(status, on) { want ->
-                autoConnect = want
-                if (want) CarLifeService.switchOn(context) else CarLifeService.switchOff(context)
+                if (!want) CarConnection.switchOff(context)
+                else if (iccoaActions != null) iccoaActions.start(false)
+                else CarConnection.switchOn(context)
             }
         }
 
@@ -193,59 +218,67 @@ fun HomeScreen(pad: PaddingValues, onOpenAccessibility: () -> Unit, onOpenOverla
 
         item {
             Section(stringResource(R.string.home_connection)) {
-                key(LocalLayoutDirection.current) {
-                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                        listOf(0 to stringResource(R.string.mode_hotspot), 1 to stringResource(R.string.mode_direct), 2 to stringResource(R.string.mode_usb)).forEachIndexed { i, (value, label) ->
-                            SegmentedButton(
-                                selected = linkMode == value,
-                                onClick = { pickMode(value) },
-                                shape = SegmentedButtonDefaults.itemShape(i, 3)
-                            ) { FitText(label) }
+                CarProtocolSetting()
+                if (iccoa) {
+                    Spacer(Modifier.height(12.dp))
+                    IccoaConnectionControls(iccoaState, checkNotNull(iccoaActions))
+                } else {
+                    key(LocalLayoutDirection.current) {
+                        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                            listOf(0 to stringResource(R.string.mode_hotspot), 1 to stringResource(R.string.mode_direct), 2 to stringResource(R.string.mode_usb)).forEachIndexed { i, (value, label) ->
+                                SegmentedButton(
+                                    selected = linkMode == value,
+                                    onClick = { pickMode(value) },
+                                    shape = SegmentedButtonDefaults.itemShape(i, 3)
+                                ) { FitText(label) }
+                            }
                         }
                     }
-                }
-                Spacer(Modifier.height(16.dp))
-                AnimatedContent(targetState = if (cable) 2 else if (direct) 1 else 0, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "steps") { mode ->
-                    val steps = when (mode) {
-                        2 -> usbSteps(running, connected, projecting)
-                        1 -> directSteps(context, radios, car, running, connected, projecting)
-                        else -> hotspotSteps(context, radios, running, connected, projecting, car.hotspotClients)
-                    }
-                    Stepper(steps, running)
-                }
-                if (car.usb && linkMode != 2) {
-                    Text(
-                        stringResource(R.string.home_usb_takes_over, stringResource(if (linkMode == 1) R.string.mode_direct else R.string.mode_hotspot)),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 8.dp)
-                    )
-                }
-                AnimatedVisibility(visible = car.blocked != 0 && !connected) {
-                    val baidu = remember(car.blocked) { runCatching { context.packageManager.getPackageInfo("com.baidu.carlife", 0); true }.getOrDefault(false) }
-                    if (car.blocked == 0) Unit
-                    else if (baidu) Notice(stringResource(car.blocked), stringResource(R.string.action_open)) {
-                        runCatching {
-                            context.startActivity(android.content.Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:com.baidu.carlife")).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                    Spacer(Modifier.height(16.dp))
+                    AnimatedContent(targetState = if (cable) 2 else if (direct) 1 else 0, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "steps") { mode ->
+                        val steps = when (mode) {
+                            2 -> usbSteps(running, connected, projecting)
+                            1 -> directSteps(context, radios, car, running, connected, projecting)
+                            else -> hotspotSteps(context, radios, running, connected, projecting, car.hotspotClients)
                         }
-                    } else Notice(stringResource(car.blocked))
-                }
-                if (direct && running && !connected && !car.wifiDirect && car.joinTimedOutSeconds > 0) {
-                    Notice(
-                        stringResource(R.string.car_join_timeout_error, car.joinTimedOutSeconds),
-                        stringResource(R.string.car_join_timeout_action),
-                        onOpenConnectionSettings
-                    )
-                }
-                val refused = car.refused
-                AnimatedVisibility(visible = refused != 0 && !connected && !cable) {
-                    if (refused != 0) Notice(stringResource(refused), stringResource(R.string.home_use_mode, stringResource(if (direct) R.string.mode_hotspot else R.string.mode_direct))) { pickMode(if (direct) 0 else 1) }
-                }
-                if (direct && running && !connected) {
-                    TextButton(onClick = { CarLifeService.tryAgain() }, modifier = Modifier.align(Alignment.End)) { Text(stringResource(R.string.home_try_again)) }
+                        Stepper(steps, running)
+                    }
+                    if (car.usb && linkMode != 2) {
+                        Text(
+                            stringResource(R.string.home_usb_takes_over, stringResource(if (linkMode == 1) R.string.mode_direct else R.string.mode_hotspot)),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    }
+                    AnimatedVisibility(visible = car.blocked != 0 && !connected) {
+                        val baidu = remember(car.blocked) { runCatching { context.packageManager.getPackageInfo("com.baidu.carlife", 0); true }.getOrDefault(false) }
+                        if (car.blocked == 0) Unit
+                        else if (baidu) Notice(stringResource(car.blocked), stringResource(R.string.action_open)) {
+                            runCatching {
+                                context.startActivity(android.content.Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:com.baidu.carlife")).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                            }
+                        } else Notice(stringResource(car.blocked))
+                    }
+                    if (direct && running && !connected && !car.wifiDirect && car.joinTimedOutSeconds > 0) {
+                        Notice(
+                            stringResource(R.string.car_join_timeout_error, car.joinTimedOutSeconds),
+                            stringResource(R.string.car_join_timeout_action),
+                            onOpenConnectionSettings
+                        )
+                    }
+                    val refused = car.refused
+                    AnimatedVisibility(visible = refused != 0 && !connected && !cable) {
+                        if (refused != 0) Notice(stringResource(refused), stringResource(R.string.home_use_mode, stringResource(if (direct) R.string.mode_hotspot else R.string.mode_direct))) { pickMode(if (direct) 0 else 1) }
+                    }
+                    if (direct && running && !connected) {
+                        TextButton(onClick = { CarLifeService.tryAgain() }, modifier = Modifier.align(Alignment.End)) { Text(stringResource(R.string.home_try_again)) }
+                    }
                 }
             }
         }
+
+        if (iccoa) iccoaDevices(iccoaState)
 
         if (!modern && (!touchOn || !overlayOn || !backgroundOn)) {
             item {
@@ -279,7 +312,7 @@ fun HomeScreen(pad: PaddingValues, onOpenAccessibility: () -> Unit, onOpenOverla
                         app.prefs.aaAutoStart = it
                     }
                     FilledTonalButton(
-                        onClick = { CarLifeService.startAa() },
+                        onClick = { CarControls.startAa() },
                         enabled = projecting,
                         modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
                     ) { Text(stringResource(R.string.home_aa_start), maxLines = 1) }

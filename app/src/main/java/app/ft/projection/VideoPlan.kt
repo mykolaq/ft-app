@@ -7,7 +7,8 @@ data class VideoPlan(
     val streamHeight: Int,
     val fps: Int,
     val bitrate: Int,
-    val qpFloor: Int = 0
+    val qpFloor: Int = 0,
+    val constantBitrate: Boolean = false
 )
 
 object VideoPlans {

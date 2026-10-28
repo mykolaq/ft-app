@@ -10,7 +10,6 @@ import android.view.InputDevice
 import android.view.MotionEvent
 import androidx.compose.runtime.Composable
 import app.ft.FTApp
-import app.ft.carlife.CarTouch
 import app.ft.core.DiagLog
 import app.ft.core.Sizing
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -53,10 +52,13 @@ class CarDisplay(private val context: Context) {
     var streamWidth = 0; private set
     var streamHeight = 0; private set
 
+    @Synchronized
     fun start(
         plan: VideoPlan,
         onConfig: (ByteArray) -> Unit,
         onFrame: (ByteArray, Boolean) -> Unit,
+        onTimedFrame: ((ByteArray, Boolean, Long) -> Unit)? = null,
+        onFailure: ((Throwable) -> Unit)? = null,
         content: @Composable () -> Unit
     ) {
         stop()
@@ -67,7 +69,8 @@ class CarDisplay(private val context: Context) {
         streamWidth = plan.streamWidth
         streamHeight = plan.streamHeight
         frameIntervalMs = (1000L / fps.coerceIn(1, 120)).coerceAtLeast(8L)
-        var enc = SurfaceEncoder(streamWidth, streamHeight, fps, plan.bitrate, plan.qpFloor, onConfig, onFrame, gated = true, savePower = savePower)
+        var enc = SurfaceEncoder(streamWidth, streamHeight, fps, plan.bitrate, plan.qpFloor, onConfig, onFrame, gated = true, onTimedFrame = onTimedFrame, savePower = savePower, constantBitrate = plan.constantBitrate)
+        encoder = enc
         enc.start()
         val g = FrameGate(width, height, streamWidth, streamHeight, enc.surface ?: throw IllegalStateException("no encoder surface"))
         val surface = if (g.start(fps)) {
@@ -78,7 +81,8 @@ class CarDisplay(private val context: Context) {
             width = streamWidth
             height = streamHeight
             DiagLog.w(tag, "drawing straight at ${streamWidth}x$streamHeight, the car stretches it to fill its screen")
-            enc = SurfaceEncoder(streamWidth, streamHeight, fps, plan.bitrate, plan.qpFloor, onConfig, onFrame, savePower = savePower)
+            enc = SurfaceEncoder(streamWidth, streamHeight, fps, plan.bitrate, plan.qpFloor, onConfig, onFrame, onTimedFrame = onTimedFrame, savePower = savePower, constantBitrate = plan.constantBitrate)
+            encoder = enc
             enc.start()
             enc.surface ?: throw IllegalStateException("no encoder surface")
         }
@@ -92,20 +96,27 @@ class CarDisplay(private val context: Context) {
         onVideoChanged?.invoke(video)
         DiagLog.i(tag, "virtual display ${width}x${height} dpi=$density id=${vd.display.displayId}")
         main.post {
-            try {
-                val p = CarPresentation(context, vd.display, content)
-                p.show()
-                presentation = p
-                _active.value = true
-                watch.start()
-                if (gate == null) {
-                    main.postDelayed(ticker, frameIntervalMs)
-                    DiagLog.i(tag, "presentation shown, redraw every ${frameIntervalMs}ms")
-                } else {
-                    DiagLog.i(tag, "presentation shown, at most ${1000L / frameIntervalMs} frames a second to the car")
+            synchronized(this@CarDisplay) {
+                if (virtualDisplay !== vd) return@synchronized
+                var p: CarPresentation? = null
+                try {
+                    p = CarPresentation(context, vd.display, content)
+                    p.show()
+                    presentation = p
+                    _active.value = true
+                    watch.start()
+                    if (gate == null) {
+                        main.postDelayed(ticker, frameIntervalMs)
+                        DiagLog.i(tag, "presentation shown, redraw every ${frameIntervalMs}ms")
+                    } else {
+                        DiagLog.i(tag, "presentation shown, at most ${1000L / frameIntervalMs} frames a second to the car")
+                    }
+                } catch (t: Throwable) {
+                    if (presentation !== p) runCatching { p?.destroy() }
+                    stop()
+                    DiagLog.e(tag, "presentation failed", t)
+                    onFailure?.invoke(t)
                 }
-            } catch (t: Throwable) {
-                DiagLog.e(tag, "presentation failed", t)
             }
         }
     }
@@ -245,17 +256,27 @@ class CarDisplay(private val context: Context) {
         return MotionEvent.obtain(downTime, now, action, 2, props, coords, 0, 0, 1f, 1f, 0, 0, InputDevice.SOURCE_TOUCHSCREEN, 0)
     }
 
+    @Synchronized
     fun stop() {
         video = null
         onVideoChanged?.invoke(null)
         watch.stop()
         main.removeCallbacks(ticker)
+        main.removeCallbacks(flushMove)
+        synchronized(moveLock) { pendingMove = null }
+        downTime = 0L
+        fingers = 0
         val p = presentation
         presentation = null
-        if (p != null) main.post { runCatching { p.destroy() } }
-        _active.value = false
-        runCatching { virtualDisplay?.release() }
+        val vd = virtualDisplay
         virtualDisplay = null
+        // Presentation lifecycle and display release must stay ordered on Main.
+        // Holding the same monitor during show prevents stop from losing its owner.
+        if (p != null || vd != null) main.post {
+            runCatching { p?.destroy() }
+            runCatching { vd?.release() }
+        }
+        _active.value = false
         runCatching { gate?.stop() }
         gate = null
         runCatching { encoder?.stop() }

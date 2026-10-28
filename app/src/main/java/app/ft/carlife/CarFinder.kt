@@ -65,7 +65,6 @@ class CarFinder(private val context: Context, private val prefs: Prefs, private 
     private var narrowNoted = false
     private var narrowIndex = 0
     private val _peers = MutableStateFlow<List<Peer>>(emptyList())
-    private val _state = MutableStateFlow("off")
     private val _link = MutableStateFlow<Link?>(null)
     var onJoined: ((Link) -> Unit)? = null
     var onLeft: (() -> Unit)? = null
@@ -75,7 +74,6 @@ class CarFinder(private val context: Context, private val prefs: Prefs, private 
     fun start() {
         val m = manager
         if (m == null) {
-            _state.value = "wifi direct unavailable"
             DiagLog.w(tag, "WiFi Direct unavailable on this device")
             return
         }
@@ -84,7 +82,6 @@ class CarFinder(private val context: Context, private val prefs: Prefs, private 
         val life = lifecycle
         val ch = openChannel()
         if (ch == null) {
-            _state.value = "wifi direct unavailable"
             DiagLog.w(tag, "WiFi Direct channel could not be created")
             return
         }
@@ -107,7 +104,6 @@ class CarFinder(private val context: Context, private val prefs: Prefs, private 
             "attempt=$attempt peer=${connecting ?: "none"} recovering=${recovery != null}" +
                 if (connecting != null) " elapsed=${android.os.SystemClock.elapsedRealtime() - attemptAt}ms" else ""
         }
-        _state.value = "ready"
         loop = scope.launch(Dispatchers.Main) {
             var tick = 0
             while (isActive) {
@@ -167,7 +163,6 @@ class CarFinder(private val context: Context, private val prefs: Prefs, private 
         if (searching) return
         searching = true
         searchStartedAt = android.os.SystemClock.elapsedRealtime()
-        _state.value = "searching"
         DiagLog.i(tag, "WiFi Direct search started")
         val life = lifecycle
         scope.launch(Dispatchers.Main) {
@@ -279,12 +274,10 @@ class CarFinder(private val context: Context, private val prefs: Prefs, private 
                 if (!current(ch, life)) return
                 if (busyStreak > 0) DiagLog.i(tag, "WiFi Direct searching again after $busyStreak refusals")
                 busyStreak = 0
-                if (_link.value == null && connecting == null) _state.value = "searching"
             }
 
             override fun onFailure(reason: Int) {
                 if (!current(ch, life)) return
-                _state.value = "discovery failed ($reason)"
                 if (reason == WifiP2pManager.BUSY) busyStreak++
                 DiagLog.w(tag, "discoverPeers failed reason=$reason (${failureName(reason)})" +
                     if (reason == WifiP2pManager.BUSY && busyStreak == 3) "; the phone keeps refusing to search, usually because its hotspot is on or another app is using WiFi Direct (screen casting, Nearby Share)" else "")
@@ -315,7 +308,6 @@ class CarFinder(private val context: Context, private val prefs: Prefs, private 
                     groupVersion++
                     peersVersion++
                     _peers.value = emptyList()
-                    _state.value = "wifi direct off"
                     if (_link.value != null) {
                         _link.value = null
                         onLeft?.invoke()
@@ -347,7 +339,6 @@ class CarFinder(private val context: Context, private val prefs: Prefs, private 
                         peersVersion++
                         _peers.value = emptyList()
                         _link.value = null
-                        _state.value = "searching"
                         DiagLog.w(tag, "left the car group")
                         onLeft?.invoke()
                     }
@@ -401,7 +392,6 @@ class CarFinder(private val context: Context, private val prefs: Prefs, private 
             watchdog = null
             failures = 0
             _link.value = l
-            _state.value = "joined ${l.name.ifBlank { ip }}"
             DiagLog.i(tag, "joined group owner=$ip iface=${l.iface} weAreOwner=${l.weAreOwner} network=${g.networkName} ${g.frequency} MHz")
             onJoined?.invoke(l)
         }
@@ -439,7 +429,6 @@ class CarFinder(private val context: Context, private val prefs: Prefs, private 
                 attempt++
                 connecting = target.name
                 attemptAt = android.os.SystemClock.elapsedRealtime()
-                _state.value = "invitation pending for ${target.name}"
                 val timeoutMs = prefs.carJoinTimeoutSeconds * 1_000L
                 DiagLog.i(tag, "invitation pending for ${target.name}, allowing ${timeoutMs / 1000}s (INVITED does not identify who initiated it)")
                 watch(target, timeoutMs)
@@ -482,7 +471,6 @@ class CarFinder(private val context: Context, private val prefs: Prefs, private 
         val life = lifecycle
         val id = ++attempt
         connecting = p.name
-        _state.value = "connecting to ${p.name}"
         val timeoutMs = prefs.carJoinTimeoutSeconds * 1_000L
         DiagLog.i(tag, "connecting to ${p.name} (${p.address}), join timeout ${timeoutMs / 1000}s")
         val fresh = runCatching {
@@ -513,7 +501,6 @@ class CarFinder(private val context: Context, private val prefs: Prefs, private 
             }
             override fun onFailure(reason: Int) {
                 if (!current(ch, life) || attempt != id || connecting != p.name) return
-                _state.value = "connect failed ($reason)"
                 DiagLog.w(tag, "connect to ${p.name} failed reason=$reason (${failureName(reason)}) attempt=$id")
                 restart(p, if (reason == WifiP2pManager.BUSY) "WiFi Direct was busy" else "the request failed ($reason)", cancel = false)
             }
@@ -559,7 +546,6 @@ class CarFinder(private val context: Context, private val prefs: Prefs, private 
         peersVersion++
         _peers.value = emptyList()
         failures++
-        _state.value = "recovering connection"
         DiagLog.w(tag, "joining ${p.name}: $why; recovering before retry ${failures + 1}")
         onRetry?.invoke(p.name, failures + 1)
         recovery = scope.launch(Dispatchers.Main) {
@@ -578,7 +564,6 @@ class CarFinder(private val context: Context, private val prefs: Prefs, private 
             peersVersion++
             _peers.value = emptyList()
             recovery = null
-            _state.value = "searching"
             DiagLog.i(tag, "recovery complete; waiting for the car in a fresh WiFi Direct peer list")
             // autoMatch only sees this new snapshot. If the car is absent, keep searching.
             refreshPeers()
@@ -704,7 +689,6 @@ class CarFinder(private val context: Context, private val prefs: Prefs, private 
         notedMatch = ""
         narrowNoted = false
         runCatching { ch?.close() }
-        _state.value = "off"
     }
 
     private fun statusName(s: Int) = when (s) {

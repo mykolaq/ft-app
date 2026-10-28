@@ -11,6 +11,8 @@ FT runs in English, Arabic, Kurdish Sorani, Kurdish Badini and Russian, on the p
 
 ## How it connects
 
+**Experimental ICCOA:** Settings → Car and connection → Car protocol also offers an independent ICCOA Carlink backend, with its own Bluetooth/Wi-Fi connection, car-code authentication, screen stream and input transport. It currently targets car access-point mode with a fresh six-digit code; physical Toyota XA60 testing is still required. CarLife remains the default. See the [tester instructions in Russian](docs/ICCOA-TESTER-RU.md) and [implementation status](docs/ICCOA-DEVELOPMENT.md).
+
 For the wireless connection sequence, protocol sources and failure diagnosis, see
 [Wireless CarLife and Android Auto in FT](docs/wireless-connection.md).
 
@@ -85,6 +87,8 @@ The head unit speaks CarLife, not Android Auto, so FT shows **your own phone's**
 Android Auto only takes FT's head unit when its own head unit server is on, and Android Auto switches that server off whenever the phone restarts or Android Auto updates. FT keeps it on: whenever the car wants Android Auto and the server is off, FT opens Android Auto's settings, taps **Start head unit server** in its menu and comes back, usually in under a second. It does this with root, or without root through FT's accessibility service (the same one the car touchscreen uses). If the phone is locked, FT does it as soon as the phone is unlocked. If Android Auto's developer settings are off, FT says so once instead of trying again and again; the help sheet shows how to switch them on.
 
 Android Auto's frame rate is 30 or 60, the only two it takes from a head unit.
+
+**Settings → Android Auto → Compact FT button** replaces the return button over Android Auto with a small dark circle. It uses the corner you already chose and takes effect immediately. The original button remains the default; other FT screens keep their usual button.
 
 When the assistant listens, FT asks the car to record from its own microphone and passes that sound to Android Auto. When the assistant stops, FT ends the recording and turns the car's microphone light off.
 

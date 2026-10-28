@@ -5,7 +5,6 @@ object JoinWatch {
     const val DEFAULT_TIMEOUT_SECONDS = 5
     val TIMEOUT_SECONDS = listOf(5, 15, 30, 60)
     const val GIVE_UP_MS = 15_000L
-    const val INVITE_MS = 5_000L
     const val RENEW_EVERY = 3
     const val DECLINE_SETTLE_MS = 1_000L
     const val QUICK_RETRY_MS = 1_000L

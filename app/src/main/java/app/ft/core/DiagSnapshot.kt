@@ -5,6 +5,7 @@ import android.app.ActivityManager
 import android.app.AppOpsManager
 import android.app.usage.UsageStatsManager
 import android.bluetooth.BluetoothManager
+import android.bluetooth.BluetoothProfile
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -106,6 +107,8 @@ object DiagSnapshot {
             }
         })
         add(line("carlife state") { CarLifeService.state.value })
+        add(line("car protocol") { Prefs(c).carProtocol.id })
+        add(line("iccoa state") { app.ft.iccoa.IccoaService.state.value })
         add(line("android auto bridge state") { AaHeadUnitService.state.value })
     }
 
@@ -147,6 +150,15 @@ object DiagSnapshot {
         })
         val adapter = (c.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
         add(line("bluetooth") { "on=${adapter?.isEnabled} state=${adapter?.state} scanning=${runCatching { adapter?.isDiscovering }.getOrNull()}" })
+        add(line("bluetooth calls HFP") {
+            when (adapter?.getProfileConnectionState(BluetoothProfile.HEADSET)) {
+                BluetoothProfile.STATE_CONNECTED -> "connected (at least one device; see BluetoothCalls log for names)"
+                BluetoothProfile.STATE_CONNECTING -> "connecting"
+                BluetoothProfile.STATE_DISCONNECTING -> "disconnecting"
+                BluetoothProfile.STATE_DISCONNECTED -> "disconnected"
+                else -> "unavailable"
+            }
+        })
         val carAddress = runCatching { c.getSharedPreferences("ft", Context.MODE_PRIVATE).getString("carBtAddress", "") }.getOrNull().orEmpty()
         runCatching { adapter?.bondedDevices?.toList().orEmpty() }.getOrElse { add("paired: error ${it.message}"); emptyList() }.forEach { d ->
             add(line("paired") {

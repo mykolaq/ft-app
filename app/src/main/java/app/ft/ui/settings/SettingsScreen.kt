@@ -80,6 +80,9 @@ import app.ft.ui.components.PickSetting
 import app.ft.ui.car.CarStyles
 import app.ft.aa.AaInstaller
 import app.ft.core.CarAudioBus
+import app.ft.core.CarProtocol
+import app.ft.ui.components.CarProtocolSetting
+import app.ft.ui.components.BluetoothCallsSetting
 import app.ft.projection.VideoPlans
 import app.ft.projection.VideoPlan
 import app.ft.projection.VideoProfile
@@ -246,39 +249,44 @@ private fun PageContent(page: SettingsPage) {
             QuietShareSetting()
         }
         SettingsPage.CAR -> {
-            TextSetting(stringResource(R.string.car_name_label), p.carName) { p.carName = it }
-            TextSetting(stringResource(R.string.car_p2p_label), p.carP2pName) { p.carP2pName = it }
-            TextSetting(stringResource(R.string.car_bt_label), p.carBtName) { p.carBtName = it }
-            TextSetting(stringResource(R.string.car_pin_label), p.carWpsPin) { p.carWpsPin = it }
-            var timeout by remember { mutableIntStateOf(p.carJoinTimeoutSeconds) }
-            PickSetting(
-                stringResource(R.string.car_join_timeout),
-                JoinWatch.TIMEOUT_SECONDS.map { Option(stringResource(R.string.car_join_timeout_seconds, it)) },
-                JoinWatch.TIMEOUT_SECONDS.indexOf(timeout),
-                about = stringResource(R.string.car_join_timeout_about)
-            ) { index ->
-                timeout = JoinWatch.TIMEOUT_SECONDS[index]
-                p.carJoinTimeoutSeconds = timeout
+            if (CarProtocolSetting() == CarProtocol.ICCOA) {
+                Text(stringResource(R.string.iccoa_settings_about), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                BluetoothCallsSetting()
+            } else {
+                TextSetting(stringResource(R.string.car_name_label), p.carName) { p.carName = it }
+                TextSetting(stringResource(R.string.car_p2p_label), p.carP2pName) { p.carP2pName = it }
+                TextSetting(stringResource(R.string.car_bt_label), p.carBtName) { p.carBtName = it }
+                TextSetting(stringResource(R.string.car_pin_label), p.carWpsPin) { p.carWpsPin = it }
+                var timeout by remember { mutableIntStateOf(p.carJoinTimeoutSeconds) }
+                PickSetting(
+                    stringResource(R.string.car_join_timeout),
+                    JoinWatch.TIMEOUT_SECONDS.map { Option(stringResource(R.string.car_join_timeout_seconds, it)) },
+                    JoinWatch.TIMEOUT_SECONDS.indexOf(timeout),
+                    about = stringResource(R.string.car_join_timeout_about)
+                ) { index ->
+                    timeout = JoinWatch.TIMEOUT_SECONDS[index]
+                    p.carJoinTimeoutSeconds = timeout
+                }
+                BoolSetting(stringResource(R.string.car_swap_keys), p.swapTrackKeys) { p.swapTrackKeys = it }
+                Text(stringResource(R.string.wheel_title), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
+                Text(
+                    stringResource(R.string.wheel_about),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                WheelSetting(stringResource(R.string.wheel_next_again), p.wheelLongNext) { p.wheelLongNext = it }
+                WheelSetting(stringResource(R.string.wheel_prev_again), p.wheelLongPrev) { p.wheelLongPrev = it }
+                Text(stringResource(R.string.gear_title), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
+                Text(
+                    stringResource(R.string.gear_about),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                GearSetting(stringResource(R.string.gear_reverse), p.gearReverse) { p.gearReverse = it }
+                GearSoundSetting(stringResource(R.string.gear_reverse_sound), p.gearReverseSound, p.gearReverseLevel, { p.gearReverseSound = it }) { p.gearReverseLevel = it }
+                GearSetting(stringResource(R.string.gear_park), p.gearPark) { p.gearPark = it }
+                GearSoundSetting(stringResource(R.string.gear_park_sound), p.gearParkSound, p.gearParkLevel, { p.gearParkSound = it }) { p.gearParkLevel = it }
             }
-            BoolSetting(stringResource(R.string.car_swap_keys), p.swapTrackKeys) { p.swapTrackKeys = it }
-            Text(stringResource(R.string.wheel_title), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
-            Text(
-                stringResource(R.string.wheel_about),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            WheelSetting(stringResource(R.string.wheel_next_again), p.wheelLongNext) { p.wheelLongNext = it }
-            WheelSetting(stringResource(R.string.wheel_prev_again), p.wheelLongPrev) { p.wheelLongPrev = it }
-            Text(stringResource(R.string.gear_title), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
-            Text(
-                stringResource(R.string.gear_about),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            GearSetting(stringResource(R.string.gear_reverse), p.gearReverse) { p.gearReverse = it }
-            GearSoundSetting(stringResource(R.string.gear_reverse_sound), p.gearReverseSound, p.gearReverseLevel, { p.gearReverseSound = it }) { p.gearReverseLevel = it }
-            GearSetting(stringResource(R.string.gear_park), p.gearPark) { p.gearPark = it }
-            GearSoundSetting(stringResource(R.string.gear_park_sound), p.gearParkSound, p.gearParkLevel, { p.gearParkSound = it }) { p.gearParkLevel = it }
         }
         SettingsPage.ANDROID_AUTO -> {
             BoolSetting(stringResource(R.string.aa_compact_return_button), p.aaCompactReturnButton,

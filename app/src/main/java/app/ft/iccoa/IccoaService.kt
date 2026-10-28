@@ -1,0 +1,313 @@
+package app.ft.iccoa
+
+import android.Manifest
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.Service
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
+import android.os.Build
+import android.os.Handler
+import android.os.IBinder
+import android.os.Looper
+import androidx.core.app.NotificationCompat
+import app.ft.FTApp
+import app.ft.MainActivity
+import app.ft.R
+import app.ft.aa.AaHeadUnitService
+import app.ft.core.CarProtocol
+import app.ft.core.DiagLog
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
+
+data class IccoaState(
+    val running: Boolean = false,
+    val discovery: IccoaDiscoveryState = IccoaDiscoveryState(),
+    val status: String = "",
+    val pinRequired: Boolean = false,
+    val connecting: Boolean = false,
+    val connected: Boolean = false
+)
+
+/** Independent ICCOA connection, control and WFD lifecycle. */
+class IccoaService : Service() {
+    private val main = Handler(Looper.getMainLooper())
+    private val lifecycle = Any()
+    @Volatile private var generation = 0
+    private var discovery: IccoaDiscovery? = null
+    @Volatile private var session: IccoaSession? = null
+    @Volatile private var media: IccoaMediaTransport? = null
+    private var projection: IccoaProjection? = null
+    private var microphone: IccoaMicrophone? = null
+    private var microphoneHook: ((Boolean) -> Unit)? = null
+    private val microphoneRetry = object : Runnable {
+        override fun run() {
+            if (microphone?.flush() == true) main.postDelayed(this, 500)
+        }
+    }
+    private var projecting = false
+    private var foregroundMode: Boolean? = null
+    private var lastVideoConfig: IccoaVideoConfig? = null
+    private val audioPlayerState = IccoaAudioPlayerState()
+    private val audioStateRetry = Runnable { flushAudioState() }
+    private var configScheduled = false
+    private val requestConfig = object : Runnable {
+        override fun run() {
+            if (session?.sendControl(24, byteArrayOf()) == true) {
+                DiagLog.i("ICCOA", "Car config request queued")
+            } else if (session != null) main.postDelayed(this, 500)
+        }
+    }
+    private val connectionTimeout = Runnable {
+        if (_state.value.connecting) connectionFailed("Connection timed out. Open ICCOA on the car and try again.")
+    }
+
+    private var bluetoothCalls: app.ft.core.BluetoothCalls? = null
+
+    override fun onCreate() {
+        super.onCreate()
+        instance = this
+        getSystemService(NotificationManager::class.java).createNotificationChannel(
+            NotificationChannel(CHANNEL, "ICCOA Carlink", NotificationManager.IMPORTANCE_LOW)
+        )
+        discovery = IccoaDiscovery(this) { result -> _state.update { it.copy(discovery = result) } }
+        projection = IccoaProjection(this, ::promoteProjection, {
+            session?.sendControl(5, byteArrayOf())
+        }, { pcm -> media?.audio(pcm) }, onFailure = ::connectionFailed)
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val prefs = FTApp.instance.prefs
+        if (intent?.action == STOP || prefs.carProtocol != CarProtocol.ICCOA || !prefs.autoConnect) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        if (!hasBluetoothPermission()) {
+            _state.value = IccoaState(discovery = IccoaDiscoveryState(phase = IccoaPhase.PERMISSION_REQUIRED))
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        try { foreground(projecting) } catch (e: SecurityException) {
+            _state.value = IccoaState(status = "Android permission required: open FT and allow Nearby devices.",
+                discovery = IccoaDiscoveryState(phase = IccoaPhase.PERMISSION_REQUIRED))
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        if (bluetoothCalls == null) {
+            bluetoothCalls = app.ft.core.BluetoothCalls(this).also { it.start() }
+        }
+        val wasRunning = _state.value.running
+        _state.update { it.copy(running = true) }
+        when (intent?.action) {
+            CONNECT -> intent.getStringExtra("address")?.let(::connectTo)
+            PIN -> intent.getStringExtra("pin")?.let { pin ->
+                if (_state.value.pinRequired && pin.matches(Regex("[0-9]{6}"))) {
+                    _state.update { it.copy(pinRequired = false, status = "Confirming the code with the car…") }
+                    session?.submitPin(pin)
+                }
+            }
+            DISCONNECT -> { endConnection(); _state.update { it.copy(status = "Disconnected") } }
+            INSPECT -> if (!_state.value.connecting && !_state.value.connected) intent.getStringExtra("address")?.let { discovery?.inspect(it) }
+            SCAN -> { endConnection(); _state.update { it.copy(status = "") }; discovery?.start() }
+            else -> if (!wasRunning) discovery?.start()
+        }
+        return START_NOT_STICKY
+    }
+
+    private fun connectTo(address: String) {
+        endConnection()
+        discovery?.stop()
+        val token = generation
+        _state.update { it.copy(connecting = true, status = "Connecting to the car…") }
+        main.postDelayed(connectionTimeout, 180_000)
+        fun current(action: () -> Unit) { main.post { if (generation == token) action() } }
+        lateinit var connection: IccoaSession
+        val carMicrophone = IccoaMicrophone(
+            sendControl = { method, body -> connection.sendControl(method, body) },
+            onPcm = { pcm -> if (generation == token) AaHeadUnitService.feedCarMicrophone(pcm) },
+            log = { DiagLog.i("ICCOA", it) })
+        microphone = carMicrophone
+        val hook: (Boolean) -> Unit = { wanted ->
+            carMicrophone.setWanted(wanted)
+            main.post {
+                if (generation == token) {
+                    main.removeCallbacks(microphoneRetry)
+                    microphoneRetry.run()
+                }
+            }
+        }
+        connection = IccoaSession(this,
+            onStatus = { text -> current { _state.update { it.copy(status = text) } } },
+            onPinRequired = { current { _state.update { it.copy(pinRequired = true, status = "Enter the six-digit code shown by the car") } } },
+            onReady = { network, peer ->
+                // AuthConfirm must only advertise our address after these listeners are bound.
+                synchronized(lifecycle) {
+                    check(generation == token) { "Connection cancelled" }
+                    val transport = IccoaMediaTransport(network, peer,
+                        decryptInput = { session?.decryptInput(it) ?: error("Session ended") },
+                        onPlay = { config -> current { play(config) } },
+                        onPause = { current { pauseProjection() } },
+                        onKeyframe = { current { projection?.requestKeyFrame() } },
+                        onTouch = { touch -> current { projection?.touch(touch) } },
+                        onKey = { code -> current { projection?.key(code) } },
+                        onClosed = { reason -> current { connectionFailed(reason) } })
+                    transport.start()
+                    media = transport
+                }
+                current { _state.update { it.copy(pinRequired = false, status = "Paired. Waiting for the car to start projection…") } }
+            },
+            onMessage = { category, method, body ->
+                if (category == 4) {
+                    if (generation == token) carMicrophone.receive(method, body)
+                } else current { control(category, method, body) }
+            },
+            onClosed = { reason -> current { connectionFailed(reason) } })
+        session = connection
+        // Publish only after the captured session has been initialized: AA callbacks
+        // arrive on its reader thread and can run as soon as the hook is visible.
+        microphoneHook = hook
+        AaHeadUnitService.onCarMicWanted = hook
+        runCatching { connection.start(address) }.onFailure { connectionFailed(it.message ?: "Connection failed") }
+    }
+
+    private fun play(config: IccoaVideoConfig) {
+        lastVideoConfig = config
+        val plan = IccoaVideoPlan.from(config)
+        val output = media ?: return
+        DiagLog.i("ICCOA", "video profile ${plan.streamWidth}x${plan.streamHeight}@${plan.fps} CBR ${plan.bitrate / 1000} kbps; receiver asked ${config.fps} fps")
+        projection?.start(plan, output::configure, output::frame)
+        if (media !== output) return // A synchronous projection failure has already ended this connection.
+        main.removeCallbacks(connectionTimeout)
+        output.resume()
+        audioPlayerState.play()
+        flushAudioState()
+        if (!configScheduled) {
+            configScheduled = true
+            main.postDelayed(requestConfig, 3_000)
+        }
+        _state.update { it.copy(connecting = false, connected = true, pinRequired = false,
+            status = "Connected · ${plan.streamWidth}×${plan.streamHeight} · ${plan.fps} fps") }
+    }
+
+    private fun control(category: Int, method: Int, body: ByteArray) {
+        if (category != 1) return
+        when (method) {
+            4 -> lastVideoConfig?.let(::play)
+            5, 41 -> pauseProjection()
+            23 -> connectionFailed("The car disconnected")
+            26 -> session?.sendControl(27, byteArrayOf())
+        }
+    }
+
+    private fun pauseProjection() {
+        // The car can hide its projection surface without ending capture or Android Auto.
+        media?.pause()
+        audioPlayerState.pause()
+        flushAudioState()
+        _state.update { it.copy(status = "Car paused projection") }
+    }
+
+    private fun flushAudioState() {
+        main.removeCallbacks(audioStateRetry)
+        audioPlayerState.flush { session?.sendControl(8, it) == true }?.let {
+            DiagLog.i("ICCOA", "AAC player state $it queued (48 kHz stereo)")
+        }
+        if (audioPlayerState.pending && session != null) main.postDelayed(audioStateRetry, 500)
+    }
+
+    private fun connectionFailed(reason: String) {
+        DiagLog.w("ICCOA", reason)
+        endConnection()
+        _state.update { it.copy(status = "$reason. Обновляю список устройств для новой попытки") }
+        // XA60 changes its private BLE address after a failed handshake. Reusing the old
+        // card times out without GATT callbacks. Clear stale peers and discover afresh.
+        if (_state.value.running) discovery?.start()
+    }
+
+    private fun endConnection() {
+        main.removeCallbacks(connectionTimeout)
+        main.removeCallbacks(audioStateRetry)
+        main.removeCallbacks(requestConfig)
+        main.removeCallbacks(microphoneRetry)
+        if (AaHeadUnitService.onCarMicWanted === microphoneHook) AaHeadUnitService.onCarMicWanted = null
+        microphoneHook = null
+        microphone?.close()
+        microphone = null
+        audioPlayerState.reset()
+        configScheduled = false
+        synchronized(lifecycle) {
+            generation++
+            media?.close(); media = null
+            session?.stop(); session = null
+        }
+        projection?.stop()
+        lastVideoConfig = null
+        _state.update { it.copy(pinRequired = false, connecting = false, connected = false) }
+    }
+
+    private fun foreground(withProjection: Boolean) {
+        if (foregroundMode == withProjection) return
+        val launch = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val note = NotificationCompat.Builder(this, CHANNEL).setSmallIcon(R.drawable.ic_tile_ft)
+            .setContentTitle("FT · ICCOA Carlink").setContentText("Experimental wireless projection")
+            .setContentIntent(launch).setOngoing(true).build()
+        val type = ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE or
+            (if (withProjection) ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION else 0)
+        startForeground(NOTIFICATION, note, type)
+        foregroundMode = withProjection
+    }
+
+    private fun promoteProjection() { foreground(true); projecting = true }
+    private fun hasBluetoothPermission(): Boolean = Build.VERSION.SDK_INT < 31 ||
+        listOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT).all {
+            checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED
+        }
+
+    override fun onDestroy() {
+        bluetoothCalls?.close(); bluetoothCalls = null
+        discovery?.stop(); discovery = null
+        endConnection()
+        projection?.close(); projection = null
+        _state.update { it.copy(running = false) }
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        foregroundMode = null
+        instance = null
+        super.onDestroy()
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    companion object {
+        private const val CHANNEL = "iccoa_projection"
+        private const val NOTIFICATION = 43
+        private const val START = "app.ft.iccoa.START"
+        private const val STOP = "app.ft.iccoa.STOP"
+        private const val SCAN = "app.ft.iccoa.SCAN"
+        private const val INSPECT = "app.ft.iccoa.INSPECT"
+        private const val CONNECT = "app.ft.iccoa.CONNECT"
+        private const val PIN = "app.ft.iccoa.PIN"
+        private const val DISCONNECT = "app.ft.iccoa.DISCONNECT"
+        private val _state = MutableStateFlow(IccoaState())
+        val state: StateFlow<IccoaState> = _state
+        private var instance: IccoaService? = null
+        fun start(context: Context) = send(context, START)
+        fun scanAgain(context: Context) = send(context, SCAN)
+        fun inspect(context: Context, address: String) = send(context, INSPECT, address = address)
+        fun connect(context: Context, address: String) = send(context, CONNECT, address = address)
+        fun submitPin(context: Context, pin: String) = send(context, PIN, pin = pin)
+        fun disconnect(context: Context) = send(context, DISCONNECT)
+        fun stop(context: Context) { if (instance != null) send(context, STOP) }
+        private fun send(context: Context, action: String, address: String? = null, pin: String? = null) {
+            val intent = Intent(context, IccoaService::class.java).setAction(action)
+                .putExtra("address", address).putExtra("pin", pin)
+            runCatching {
+                if (action == STOP) context.startService(intent) else context.startForegroundService(intent)
+            }.onFailure { DiagLog.w("ICCOA", "Android refused $action: ${it.javaClass.simpleName}; open FT and try again") }
+        }
+    }
+}

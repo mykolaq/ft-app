@@ -96,6 +96,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.graphics.drawable.toBitmap
 import app.ft.FTApp
@@ -103,12 +104,12 @@ import app.ft.FTTouchService
 import app.ft.aa.AaHeadUnitService
 import app.ft.aa.AaSession
 import app.ft.aa.AaVideoSink
+import app.ft.projection.CarControls
+import app.ft.projection.CarControls.Phase
+import app.ft.projection.CarControls.ScreenState
 import app.ft.aa.AaTouchViewport
 import app.ft.aa.AaViewport
 import app.ft.core.PhoneStyle
-import app.ft.carlife.CarLifeService
-import app.ft.carlife.CarLifeSession
-import app.ft.carlife.CarState
 import app.ft.core.DiagLog
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
@@ -165,7 +166,7 @@ fun CarScreen() {
 
 @Composable
 private fun CarRoot(style: CarStyle) {
-    val state by CarLifeService.state.collectAsState()
+    val state by CarControls.state.collectAsState()
     val aa by AaHeadUnitService.state.collectAsState()
     val alternative by PhoneStyle.modern.collectAsState()
     var view by remember { mutableStateOf(CarView.LAUNCHER) }
@@ -237,12 +238,12 @@ private fun CarRoot(style: CarStyle) {
     LaunchedEffect(view) {
         DiagLog.i("Car", "car screen: ${view.name}")
         if (view == CarView.YOUTUBE || view == CarView.BROWSER || view == CarView.VIDEOS || view == CarView.SUPERCAST) {
-            CarLifeService.soundSoon()
+            CarControls.soundSoon()
         }
     }
     LaunchedEffect(nowPlaying) { if (view == CarView.MUSIC) DiagLog.i("Car", if (nowPlaying) "music: now playing" else "music: song list") }
     LaunchedEffect(Unit) {
-        CarLifeService.openView.collect { key ->
+        CarControls.openView.collect { key ->
             when (key) {
                 "music" -> { view = CarView.MUSIC; nowPlaying = false }
                 "videos" -> view = CarView.VIDEOS
@@ -254,7 +255,7 @@ private fun CarRoot(style: CarStyle) {
         }
     }
     LaunchedEffect(Unit) {
-        CarLifeService.screenKeys.collect { key ->
+        CarControls.screenKeys.collect { key ->
             when {
                 key == 3 -> { view = CarView.LAUNCHER; nowPlaying = false }
                 castFull && view == CarView.SUPERCAST -> castFull = false
@@ -349,7 +350,7 @@ private fun CarRoot(style: CarStyle) {
                 CornerPill(style.corner, compact = state.aaOverlay && style.aaCompactReturnButton) {
                     view = CarView.LAUNCHER
                     nowPlaying = false
-                    CarLifeService.goHome()
+                    CarControls.goHome()
                 }
             }
         }
@@ -382,7 +383,7 @@ private fun ShareWait(pkg: String, forSound: Boolean) {
                 style = MaterialTheme.typography.bodyLarge,
                 color = Color.White.copy(alpha = 0.7f)
             )
-            Button(onClick = { CarLifeService.cancelShareWait() }) { Text(stringResource(if (forSound) R.string.action_not_now else R.string.action_cancel)) }
+            Button(onClick = { CarControls.cancelShareWait() }) { Text(stringResource(if (forSound) R.string.action_not_now else R.string.action_cancel)) }
         }
     }
 }
@@ -433,14 +434,14 @@ private fun CornerPill(corner: Int, compact: Boolean = false, onClick: () -> Uni
 }
 
 @Composable
-private fun Launcher(state: CarState, style: CarStyle, preview: Boolean = false, onApp: (String) -> Boolean = { false }, onOpen: (CarView, Boolean) -> Unit = { _, _ -> }) {
+private fun Launcher(state: ScreenState, style: CarStyle, preview: Boolean = false, onApp: (String) -> Boolean = { false }, onOpen: (CarView, Boolean) -> Unit = { _, _ -> }) {
     val player by CarPlayer.state.collectAsState()
     val context = LocalContext.current
     val hasInfo = style.showClock || style.showLink || style.showCarHome || style.showMusic || style.showAa || style.widgets.isNotEmpty()
     val info: @Composable ColumnScope.() -> Unit = {
         if (style.showClock) Clock(style.clock24)
         if (style.showLink) LinkChip(state, preview)
-        if (style.showCarHome) CarHomeButton { if (!preview) CarLifeService.goToCarHome() }
+        if (style.showCarHome) CarHomeButton { if (!preview) CarControls.goToCarHome() }
         CarWidgets(style, preview = preview)
         Spacer(Modifier.weight(1f))
         if (style.showMusic) {
@@ -448,7 +449,7 @@ private fun Launcher(state: CarState, style: CarStyle, preview: Boolean = false,
         }
         if (style.showAa) {
             Button(
-                onClick = { if (!preview) CarLifeService.startAa() },
+                onClick = { if (!preview) CarControls.startAa() },
                 modifier = Modifier.fillMaxWidth().height(84.dp),
                 shapes = ButtonDefaults.shapes(),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
@@ -525,13 +526,13 @@ private fun CarHomeButton(onClick: () -> Unit) {
 }
 
 @Composable
-private fun LinkChip(state: CarState, preview: Boolean = false) {
-    val s = state.session
+private fun LinkChip(state: ScreenState, preview: Boolean = false) {
+    val s = state
     val label = when {
-        s is CarLifeSession.State.Projecting -> stringResource(R.string.link_projecting, s.via, s.streamWidth, s.streamHeight, s.fps)
+        s.phase == Phase.PROJECTING -> stringResource(R.string.link_projecting, s.via, s.width, s.height, s.fps)
         preview -> stringResource(R.string.link_projecting, "WiFi", 1920, 720, 30)
-        s is CarLifeSession.State.Negotiated -> stringResource(R.string.link_getting_ready, s.via)
-        s is CarLifeSession.State.Linked -> stringResource(R.string.link_connected, s.via)
+        s.phase == Phase.NEGOTIATED -> stringResource(R.string.link_getting_ready, s.via)
+        s.phase == Phase.LINKED -> stringResource(R.string.link_connected, s.via)
         else -> stringResource(R.string.link_not_connected)
     }
     Surface(shape = RoundedCornerShape(50), color = Color.White.copy(alpha = 0.12f), contentColor = Color.White) {
@@ -666,10 +667,10 @@ private fun openTile(key: String, onOpen: (CarView, Boolean) -> Unit, onApp: (St
         key == "browser" -> onOpen(CarView.BROWSER, false)
         key == "apps" -> onOpen(CarView.DRAWER, false)
         key == "supercast" -> onOpen(CarView.SUPERCAST, false)
-        key == "maps" -> CarLifeService.launchApp(FTApp.instance.prefs.mapsPackage)
-        key == "aa" -> CarLifeService.startAa()
-        key == "phone" -> CarLifeService.showPhone()
-        key.startsWith("app:") -> CarLifeService.launchApp(key.removePrefix("app:"))
+        key == "maps" -> CarControls.launchApp(FTApp.instance.prefs.mapsPackage)
+        key == "aa" -> CarControls.startAa()
+        key == "phone" -> CarControls.showPhone()
+        key.startsWith("app:") -> CarControls.launchApp(key.removePrefix("app:"))
     }
 }
 
@@ -859,11 +860,11 @@ private fun PhoneKeys(left: Boolean, rotate: Boolean, modifier: Modifier) {
                     exit = fadeOut(tween(250))
                 ) {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(horizontal = 6.dp)) {
-                        PhoneKey(CarIcons.Back, stringResource(R.string.key_back)) { CarLifeService.navBack(); poke++ }
-                        PhoneKey(Icons.Filled.Home, stringResource(R.string.key_home)) { CarLifeService.navHome(); poke++ }
-                        PhoneKey(CarIcons.Recents, stringResource(R.string.key_recents)) { CarLifeService.navRecents(); poke++ }
-                        if (rotate) PhoneKey(CarIcons.Rotate, stringResource(R.string.key_rotate)) { CarLifeService.rotatePhone(); poke++ }
-                        PhoneKey(Icons.Filled.Notifications, stringResource(R.string.key_notifications)) { CarLifeService.navNotifications(); poke++ }
+                        PhoneKey(CarIcons.Back, stringResource(R.string.key_back)) { CarControls.navBack(); poke++ }
+                        PhoneKey(Icons.Filled.Home, stringResource(R.string.key_home)) { CarControls.navHome(); poke++ }
+                        PhoneKey(CarIcons.Recents, stringResource(R.string.key_recents)) { CarControls.navRecents(); poke++ }
+                        if (rotate) PhoneKey(CarIcons.Rotate, stringResource(R.string.key_rotate)) { CarControls.rotatePhone(); poke++ }
+                        PhoneKey(Icons.Filled.Notifications, stringResource(R.string.key_notifications)) { CarControls.navNotifications(); poke++ }
                     }
                 }
             }
@@ -939,7 +940,7 @@ private fun AppCell(app: AppCatalog.App, px: Int, onClose: () -> Unit) {
         if (value == null) value = AppCatalog.icon(context, app, px)
     }
     Surface(
-        onClick = { onClose(); CarLifeService.launchApp(app.pkg) },
+        onClick = { onClose(); CarControls.launchApp(app.pkg) },
         shape = RoundedCornerShape(22.dp),
         color = LocalCarCard.current,
         contentColor = Color.White,
@@ -956,7 +957,7 @@ private fun AppCell(app: AppCatalog.App, px: Int, onClose: () -> Unit) {
 
 @Composable
 fun CarPreview(style: CarStyle, modifier: Modifier = Modifier, pill: Boolean = false) {
-    val state by CarLifeService.state.collectAsState()
+    val state by CarControls.state.collectAsState()
     CarTheme(style.accentColor) {
         CompositionLocalProvider(
             LocalContentColor provides Color.White,

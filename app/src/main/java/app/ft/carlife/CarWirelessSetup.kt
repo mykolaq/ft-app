@@ -55,18 +55,20 @@ class CarWirelessSetup(
         val frames = ArrayList<Pair<Int, ByteArray>>()
         synchronized(buffer) {
             for (b in chunk) buffer.add(b)
-            while (buffer.size >= CarLifeProtocol.HEAD_CMD) {
-                val head = ByteArray(CarLifeProtocol.HEAD_CMD) { buffer[it] }
+            var at = 0
+            while (buffer.size - at >= CarLifeProtocol.HEAD_CMD) {
+                val head = ByteArray(CarLifeProtocol.HEAD_CMD) { buffer[at + it] }
                 val len = Bytes.u16(head, 0)
                 if (len > MAX_BODY || Bytes.u16(head, 2) != 0) {
-                    buffer.removeAt(0)
+                    at++
                     continue
                 }
-                if (buffer.size < CarLifeProtocol.HEAD_CMD + len) break
-                val body = ByteArray(len) { buffer[CarLifeProtocol.HEAD_CMD + it] }
-                repeat(CarLifeProtocol.HEAD_CMD + len) { buffer.removeAt(0) }
+                if (buffer.size - at < CarLifeProtocol.HEAD_CMD + len) break
+                val body = ByteArray(len) { buffer[at + CarLifeProtocol.HEAD_CMD + it] }
+                at += CarLifeProtocol.HEAD_CMD + len
                 frames += Bytes.u32(head, 4) to body
             }
+            buffer.subList(0, at).clear()
         }
         frames.forEach { (id, body) -> handle(id, body) }
     }

@@ -97,6 +97,10 @@ object CarAudioBus {
             if (value) synchronized(lock) {
                 if (voiceOpen) closeVoice()
                 if (blending) finishBlend()
+                waiting.clear()
+                held = 0
+                offset = 0
+                speaking = false
             }
         }
 
