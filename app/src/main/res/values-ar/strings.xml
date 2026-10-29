@@ -86,6 +86,8 @@
     <string name="car_name_label">الاسم الذي يظهر على شاشة السيارة</string>
     <string name="car_p2p_label">اسم WiFi Direct (فارغ = أي CarLife)</string>
     <string name="car_bt_label">اسم البلوتوث للتشغيل التلقائي (فارغ = أي جهاز)</string>
+    <string name="car_bt_reconnect">إعادة توصيل بلوتوث السيارة</string>
+    <string name="car_bt_reconnect_about">أثناء تشغيل FT، حاول إعادة الاتصال حتى ثلاث مرات بعد الانقطاع، فقط عند اكتشاف آخر سيارة مقترنة بالقرب منك. يجب أن تكون السيارة قابلة للاكتشاف عبر البلوتوث. يعتمد توفر الميزة على هاتفك.</string>
     <string name="car_pin_label">رمز PIN لـ WiFi Direct (فارغ = بضغطة زر)</string>
     <string name="car_swap_keys">بدّل زرّي التالي والسابق في المقود</string>
     <string name="sound_bluetooth">استخدم بلوتوث السيارة للصوت بدلًا من ذلك</string>
@@ -455,6 +457,10 @@
     <string name="car_join_timeout">Wi-Fi Direct connection timeout</string>
     <string name="car_join_timeout_about">How long to wait before retrying an unanswered connection attempt. Increase this if the car takes longer to connect. Applies to the next attempt.</string>
     <string name="car_join_timeout_seconds">%1$d s</string>
+    <string name="car_join_timeout_custom">Custom value…</string>
+    <string name="car_join_timeout_custom_value">%1$d s (custom)</string>
+    <string name="car_join_timeout_input">Timeout, seconds</string>
+    <string name="car_join_timeout_range">Enter a whole number from %1$d to %2$d seconds.</string>
     <string name="car_join_timeout_error">Could not connect to the car over Wi-Fi Direct within %1$d s. Retrying automatically. Check that CarLife is open on the car screen, or increase the connection timeout.</string>
     <string name="car_join_timeout_action">Connection settings</string>
     <string name="look_phone_style">App appearance</string>

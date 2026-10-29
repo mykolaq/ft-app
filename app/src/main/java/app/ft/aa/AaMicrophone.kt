@@ -8,13 +8,13 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 class AaMicrophone(private val onPcm: (ByteArray) -> Unit) {
     private val tag = "AA"
-    private val running = AtomicBoolean(false)
+    @Volatile private var running = AtomicBoolean(false)
     private var record: AudioRecord? = null
     private var thread: Thread? = null
 
     val active: Boolean get() = running.get()
 
-    fun start(): Boolean {
+    @Synchronized fun start(deliver: (ByteArray) -> Unit = onPcm): Boolean {
         if (running.get()) return true
         return try {
             val min = AudioRecord.getMinBufferSize(RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
@@ -31,16 +31,19 @@ class AaMicrophone(private val onPcm: (ByteArray) -> Unit) {
                 return false
             }
             record = r
-            running.set(true)
+            // Each recorder owns its flag: restarting must never revive the previous reader.
+            val captureRunning = AtomicBoolean(true)
+            running = captureRunning
             r.startRecording()
             thread = Thread {
                 val buf = ByteArray(CHUNK)
-                while (running.get()) {
+                while (captureRunning.get()) {
                     val n = runCatching { r.read(buf, 0, buf.size) }.getOrDefault(-1)
+                    if (!captureRunning.get()) break
                     if (n <= 0) {
                         if (n < 0) break else continue
                     }
-                    onPcm(if (n == buf.size) buf.copyOf() else buf.copyOf(n))
+                    deliver(if (n == buf.size) buf.copyOf() else buf.copyOf(n))
                 }
             }.apply { isDaemon = true; start() }
             DiagLog.i(tag, "microphone open for Android Auto")
@@ -60,7 +63,7 @@ class AaMicrophone(private val onPcm: (ByteArray) -> Unit) {
         }
     }
 
-    fun stop() {
+    @Synchronized fun stop() {
         if (!running.getAndSet(false)) return
         runCatching { record?.stop() }
         runCatching { record?.release() }

@@ -47,9 +47,22 @@ class CarBluetoothTest {
         verify(f.client, times(1)).close()
     }
 
+    @Test fun frameCallbackFailureClosesLinkAndOffersBluetoothAgain() = fixture(connect = true) { f ->
+        val input = mock(InputStream::class.java)
+        `when`(f.client.inputStream).thenReturn(input)
+        `when`(input.read(any(ByteArray::class.java))).thenReturn(1)
+        f.bt.onFrame = { throw IllegalStateException("bad frame") }
+        f.bt.start()
+        await(f.clientClosed)
+        await(f.listeningAgain)
+        assertTrue("callback failure must not cancel the listener's scope", f.job.isActive)
+        verify(f.client, times(1)).close()
+    }
+
     private class Fixture(val job: Job, val bt: CarBluetooth, val servers: List<BluetoothServerSocket>,
                           val accepting: CountDownLatch, val serversClosed: CountDownLatch,
-                          val client: BluetoothSocket, val clientClosed: CountDownLatch, val reading: CountDownLatch)
+                          val client: BluetoothSocket, val clientClosed: CountDownLatch, val reading: CountDownLatch,
+                          val listeningAgain: CountDownLatch)
 
     private fun fixture(connect: Boolean = false, test: (Fixture) -> Unit) {
         val context = mock(Context::class.java)
@@ -82,9 +95,14 @@ class CarBluetoothTest {
             }
         }
         val next = AtomicInteger()
-        `when`(adapter.listenUsingRfcommWithServiceRecord(anyString(), any(UUID::class.java))).thenAnswer { servers[next.getAndIncrement() % 2] }
+        val listeningAgain = CountDownLatch(1)
+        `when`(adapter.listenUsingRfcommWithServiceRecord(anyString(), any(UUID::class.java))).thenAnswer {
+            val index = next.getAndIncrement()
+            if (index >= 2) listeningAgain.countDown()
+            servers[index % 2]
+        }
         val bt = CarBluetooth(context, mock(Prefs::class.java), scope)
-        try { test(Fixture(job, bt, servers, accepting, serversClosed, client, clientClosed, reading)) }
+        try { test(Fixture(job, bt, servers, accepting, serversClosed, client, clientClosed, reading, listeningAgain)) }
         finally { bt.stop(); job.cancel(); closed.forEach { it.countDown() }; clientClosed.countDown() }
     }
 

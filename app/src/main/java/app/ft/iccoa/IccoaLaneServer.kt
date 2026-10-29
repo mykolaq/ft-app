@@ -50,6 +50,7 @@ internal class IccoaLaneServer(
                 onConnected(socket)
                 log("LANE $port connected")
                 var logged = 0
+                val controlCounts = mutableMapOf<Int, Int>()
                 while (!closed) {
                     stage = "read-header"
                     val frame = IccoaControl.readOrNull(socket.getInputStream()) { stage = "header-read" }
@@ -62,9 +63,18 @@ internal class IccoaLaneServer(
                         break
                     }
                     received++
-                    if ((frame.category != 1 || frame.method != 1) && logged < 12) {
+                    // A long-lived lane must still reveal late voice/phone/config events.
+                    // Retain a bounded count per method, sampling repeats at powers of two.
+                    val controlCount = if (frame.category == 1 && frame.method != 1 &&
+                        (frame.method in controlCounts || controlCounts.size < 64)) {
+                        ((controlCounts[frame.method] ?: 0) + 1).also { controlCounts[frame.method] = it }
+                    } else 0
+                    val logControl = controlCount in 1..3 ||
+                        (controlCount > 0 && controlCount and (controlCount - 1) == 0)
+                    val logOther = frame.category != 1 && logged < 12
+                    if (logControl || logOther) {
                         log("LANE $port frame category=${frame.category} method=${frame.method} type=${frame.type} format=${frame.format} bytes=${frame.body.size}")
-                        logged++
+                        if (logOther) logged++
                     }
                     stage = "dispatch"
                     onFrame(frame)

@@ -24,6 +24,39 @@ class CarAudioBusTest {
         CarAudioBus.sink = { pcm -> got.add(pcm) }
     }
 
+    @Test fun incompleteStereoFramesCannotShiftMixedSamples() {
+        listen()
+        val music = loud(8, 1000)
+        val guidance = loud(4, 2000) + byteArrayOf(0x7f)
+        CarAudioBus.write(CarAudioBus.LANE_MEDIA, music)
+        CarAudioBus.write(CarAudioBus.LANE_SPEECH, guidance)
+        CarAudioBus.write(CarAudioBus.LANE_SYSTEM, loud(4, 3000))
+        CarAudioBus.write(CarAudioBus.LANE_MEDIA, music + byteArrayOf(0x7f, 0x7f, 0x7f))
+        assertArrayEquals(loud(4, 3000) + loud(4, 4000), got.last())
+        assertTrue(got.all { it.size % 4 == 0 })
+    }
+
+    @Test fun packetsWithoutACompleteStereoFrameAreIgnored() {
+        listen()
+        for (size in 1..3) CarAudioBus.write(CarAudioBus.LANE_MEDIA, ByteArray(size))
+        assertTrue(got.isEmpty())
+    }
+
+    @Test fun nativeRateConversionAlsoDropsAnIncompleteStereoFrame() {
+        val frame = loud(4, 1000)
+        for (size in 1..3) assertArrayEquals(frame, CarAudioBus.toCarFormat(frame + ByteArray(size), 48000, 2))
+    }
+
+    @Test fun overflowingGuidanceDiscardsThePartlyConsumedPacketWithoutShiftingStereo() {
+        listen()
+        CarAudioBus.write(CarAudioBus.LANE_MEDIA, loud(4, 1000))
+        CarAudioBus.write(CarAudioBus.LANE_SPEECH, loud(12, 2000) + byteArrayOf(0x7f))
+        CarAudioBus.write(CarAudioBus.LANE_MEDIA, loud(4, 1000))
+        CarAudioBus.write(CarAudioBus.LANE_SPEECH, loud(48000 * 4, 3000) + byteArrayOf(0x7f))
+        CarAudioBus.write(CarAudioBus.LANE_MEDIA, loud(8, 1000))
+        assertArrayEquals(loud(8, 4000), got.last())
+    }
+
     @Test fun callDiscardsQueuedGuidanceBeforeMusicResumes() {
         listen()
         val music = loud(512, 1000)

@@ -86,6 +86,8 @@
     <string name="car_name_label">ئەو ناڤێ ل سەر شاشەیا ترومبێلێ دیار دبیت</string>
     <string name="car_p2p_label">ناڤێ WiFi Direct (ڤالا = هەر CarLife)</string>
     <string name="car_bt_label">ناڤێ بلوتوسێ بۆ دەستپێکرنا ئۆتۆماتیک (ڤالا = هەر ئامیرەک)</string>
+    <string name="car_bt_reconnect">دووبارە گرێدانا بلوتوسێ ترومبێلێ</string>
+    <string name="car_bt_reconnect_about">دەمێ FT کار دکەت، پشتی قەطعبوونا گرێدانێ هەتا سێ جاران هەول بدە، بتنێ ئەگەر ترومبێلا دوماهیێ یا جووتکری ل نێزیک بهێتە دیتن. دڤێت ترومبێل د لێگەریانا بلوتوسێ دا دیار بیت. بەردەستبوونا ڤێ تایبەتمەندیێ ب مۆبایلا تە ڤە گرێدایە.</string>
     <string name="car_pin_label">PIN یێ WiFi Direct (ڤالا = ب دوگمێ)</string>
     <string name="car_swap_keys">جهێ دوگمێن پێشڤە و پاشڤە ل سەر سوکانێ بگوهۆڕە</string>
     <string name="sound_bluetooth">ل شوینا وێ بلوتوسێ ترومبێلێ بۆ دەنگی ب کار بینە</string>
@@ -455,6 +457,10 @@
     <string name="car_join_timeout">Wi-Fi Direct connection timeout</string>
     <string name="car_join_timeout_about">How long to wait before retrying an unanswered connection attempt. Increase this if the car takes longer to connect. Applies to the next attempt.</string>
     <string name="car_join_timeout_seconds">%1$d s</string>
+    <string name="car_join_timeout_custom">Custom value…</string>
+    <string name="car_join_timeout_custom_value">%1$d s (custom)</string>
+    <string name="car_join_timeout_input">Timeout, seconds</string>
+    <string name="car_join_timeout_range">Enter a whole number from %1$d to %2$d seconds.</string>
     <string name="car_join_timeout_error">Could not connect to the car over Wi-Fi Direct within %1$d s. Retrying automatically. Check that CarLife is open on the car screen, or increase the connection timeout.</string>
     <string name="car_join_timeout_action">Connection settings</string>
     <string name="look_phone_style">App appearance</string>

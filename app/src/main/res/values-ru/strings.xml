@@ -86,6 +86,8 @@
     <string name="car_name_label">Имя, которое видит магнитола</string>
     <string name="car_p2p_label">Имя WiFi Direct (пусто = любой CarLife)</string>
     <string name="car_bt_label">Имя Bluetooth для автозапуска (пусто = любое)</string>
+    <string name="car_bt_reconnect">Переподключать Bluetooth автомобиля</string>
+    <string name="car_bt_reconnect_about">Пока FT включён, после обрыва делать до трёх попыток, только если последняя сопряжённая машина обнаружена поблизости. Машина должна быть видна в Bluetooth-поиске. Доступность зависит от телефона.</string>
     <string name="car_pin_label">PIN-код WiFi Direct (пусто = WPS по кнопке)</string>
     <string name="car_swap_keys">Поменять местами кнопки «Следующий» и «Предыдущий» на руле</string>
     <string name="sound_bluetooth">Выводить звук через Bluetooth автомобиля</string>
@@ -454,6 +456,10 @@
     <string name="car_join_timeout">Время ожидания подключения Wi-Fi Direct</string>
     <string name="car_join_timeout_about">Сколько ждать ответа перед повторной попыткой подключения. Увеличьте время, если магнитола не успевает подключиться. Применяется со следующей попытки.</string>
     <string name="car_join_timeout_seconds">%1$d с</string>
+    <string name="car_join_timeout_custom">Своё значение…</string>
+    <string name="car_join_timeout_custom_value">%1$d с (своё значение)</string>
+    <string name="car_join_timeout_input">Время ожидания, с</string>
+    <string name="car_join_timeout_range">Введите целое число от %1$d до %2$d секунд.</string>
     <string name="car_join_timeout_error">Не удалось подключиться к магнитоле по Wi-Fi Direct за %1$d с. Приложение повторяет попытку автоматически. Проверьте, открыт ли CarLife на магнитоле, или увеличьте время ожидания подключения.</string>
     <string name="car_join_timeout_action">Настройки подключения</string>
     <string name="look_phone_style">Оформление приложения</string>

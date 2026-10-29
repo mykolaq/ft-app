@@ -40,6 +40,7 @@ class AaSession(
             job?.cancel()
         },
         cleanup = { reason ->
+            microphoneInput.close()
             runCatching { mic.stop() }
             if (micWanted) {
                 micWanted = false
@@ -67,7 +68,9 @@ class AaSession(
     private val openChannels = HashSet<Int>()
     private val navigation = AaNavigation()
     private val music = AaMusic()
-    private val mic = AaMicrophone { pcm -> sendMicrophone(pcm) }
+    private val mic = AaMicrophone { }
+    private val microphoneInput = AaMicrophoneInput(::sendMicrophone, { mic.stop() }, { DiagLog.i(tag, it) })
+    private var microphoneGeneration = 0L
     @Volatile private var micWanted = false
     @Volatile private var carMicAt = 0L
 
@@ -329,7 +332,7 @@ class AaSession(
     }
 
     private fun startMicrophone() {
-        if (mic.active) return
+        if (mic.active || !microphoneInput.phoneAllowed) return
         if (!AaHeadUnitService.micReady) {
             DiagLog.w(tag, "Android Auto asked to listen, but FT was started in the background so android will not give it the microphone; open FT and start Android Auto from there")
         }
@@ -337,17 +340,14 @@ class AaSession(
             DiagLog.i(tag, "using the car's microphone for Android Auto")
             return
         }
-        if (!mic.start()) DiagLog.w(tag, "Android Auto asked to listen but the microphone is not available")
+        val token = microphoneGeneration
+        if (!mic.start { pcm -> lifecycle.dispatch { microphoneInput.phone(token, pcm) } })
+            DiagLog.w(tag, "Android Auto asked to listen but the microphone is not available")
     }
 
     fun feedCarMicrophone(pcm: ByteArray) {
         carMicAt = System.nanoTime()
-        if (!micWanted) return
-        if (mic.active) {
-            DiagLog.i(tag, "the car is sending its own microphone, letting go of the phone's")
-            mic.stop()
-        }
-        sendMicrophone(pcm)
+        lifecycle.dispatch { microphoneInput.car(pcm) }
     }
 
     private fun sendMicrophone(pcm: ByteArray) {
@@ -366,6 +366,7 @@ class AaSession(
                 sendEnc(AaProtocol.CH_AV_INPUT, AaProtocol.AV_INPUT_OPEN_RESPONSE, AaMessages.avInputOpenResponse(if (wanted) 0 else AaMessages.avInputOpenSession(body)))
                 if (wanted != micWanted) DiagLog.i(tag, if (wanted) "Android Auto opened the microphone" else "Android Auto closed the microphone")
                 micWanted = wanted
+                if (wanted) microphoneGeneration = microphoneInput.open() else microphoneInput.close()
                 runCatching { AaHeadUnitService.onCarMicWanted?.invoke(wanted) }
                 if (wanted) startMicrophone() else mic.stop()
             }

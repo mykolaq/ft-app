@@ -1,19 +1,24 @@
 package app.ft.iccoa
 
 import app.ft.core.ProtoReader
+import app.ft.core.ProtoWriter
 import org.junit.Assert.*
 import org.junit.Test
 
 class IccoaMicrophoneTest {
     @Test fun microphoneRequestUsesReferencePcmFormatAndStopsOnClose() {
-        val states = mutableListOf<Int>()
+        val states = mutableListOf<Pair<Int, Int>>()
         val mic = IccoaMicrophone({ method, bytes ->
-            assertEquals(6, method)
             val fields = ProtoReader(bytes)
-            states += fields.int(1)
-            assertEquals(16000, fields.int(2))
-            assertEquals(1, fields.int(3))
-            assertEquals(2, fields.int(4))
+            states += method to fields.int(if (method == 9) 4 else 1)
+            if (method == 6) {
+                assertEquals(16000, fields.int(2))
+                assertEquals(1, fields.int(3))
+                assertEquals(2, fields.int(4))
+            } else {
+                assertEquals(9, method)
+                assertArrayEquals(byteArrayOf(32, fields.int(4).toByte()), bytes)
+            }
             true
         }, {})
         mic.setWanted(true)
@@ -21,7 +26,7 @@ class IccoaMicrophoneTest {
         mic.close()
         mic.close()
         mic.setWanted(true)
-        assertEquals(listOf(1, 0), states)
+        assertEquals(listOf(9 to 1, 6 to 1, 6 to 0, 9 to 0), states)
     }
 
     @Test fun onlyMicrophonePcmWhileListeningReachesAndroidAuto() {
@@ -45,8 +50,8 @@ class IccoaMicrophoneTest {
     @Test fun unavailableControlLaneRetriesLatestStateAndCloseCancelsRetries() {
         var available = false
         val states = mutableListOf<Int>()
-        val mic = IccoaMicrophone({ _, body ->
-            if (available) states += ProtoReader(body).int(1)
+        val mic = IccoaMicrophone({ method, body ->
+            if (available && method == 6) states += ProtoReader(body).int(1)
             available
         }, {})
         mic.setWanted(true)
@@ -71,8 +76,8 @@ class IccoaMicrophoneTest {
     @Test fun cancelledUnqueuedStartIsNotReplayedWhenLaneAppears() {
         var available = false
         val states = mutableListOf<Int>()
-        val mic = IccoaMicrophone({ _, body ->
-            if (available) states += ProtoReader(body).int(1)
+        val mic = IccoaMicrophone({ method, body ->
+            if (available && method == 6) states += ProtoReader(body).int(1)
             available
         }, {})
         mic.setWanted(true)
@@ -82,6 +87,118 @@ class IccoaMicrophoneTest {
         assertTrue(states.isEmpty())
         mic.setWanted(true)
         assertEquals(listOf(1), states)
+    }
+
+    @Test fun retryOfPartialStartDoesNotRepeatVoiceAndKeepsItsPositionBeforeMicrophone() {
+        val sent = mutableListOf<Pair<Int, Int>>()
+        var microphoneAvailable = false
+        val mic = IccoaMicrophone({ method, body ->
+            val accepted = method != 6 || microphoneAvailable
+            if (accepted) sent += method to ProtoReader(body).int(if (method == 9) 4 else 1)
+            accepted
+        }, {})
+        mic.setWanted(true)
+        assertTrue(mic.flush())
+        assertEquals(listOf(9 to 1), sent)
+        microphoneAvailable = true
+        assertFalse(mic.flush())
+        assertEquals(listOf(9 to 1, 6 to 1), sent)
+        assertFalse(mic.flush())
+        assertEquals(2, sent.size)
+    }
+
+    @Test fun cancellingPartialStartClearsVoiceWithoutStartingMicrophone() {
+        val sent = mutableListOf<Pair<Int, Int>>()
+        var microphoneAvailable = false
+        val mic = IccoaMicrophone({ method, body ->
+            val accepted = method != 6 || microphoneAvailable
+            if (accepted) sent += method to ProtoReader(body).int(if (method == 9) 4 else 1)
+            accepted
+        }, {})
+        mic.setWanted(true)
+        mic.setWanted(false)
+        microphoneAvailable = true
+        assertFalse(mic.flush())
+        mic.close()
+        assertEquals(listOf(9 to 1, 9 to 0), sent)
+    }
+
+    @Test fun voiceOffWaitsForMicrophoneOffAndRetriesWithoutRepeatingMicrophoneOff() {
+        val sent = mutableListOf<Pair<Int, Int>>()
+        var rejectedMethod = 0
+        val mic = IccoaMicrophone({ method, body ->
+            val accepted = method != rejectedMethod
+            if (accepted) sent += method to ProtoReader(body).int(if (method == 9) 4 else 1)
+            accepted
+        }, {})
+        mic.setWanted(true)
+        rejectedMethod = 6
+        mic.setWanted(false)
+        assertTrue(mic.flush())
+        assertEquals(listOf(9 to 1, 6 to 1), sent)
+        rejectedMethod = 9
+        assertTrue(mic.flush())
+        assertEquals(listOf(9 to 1, 6 to 1, 6 to 0), sent)
+        rejectedMethod = 0
+        assertFalse(mic.flush())
+        assertEquals(listOf(9 to 1, 6 to 1, 6 to 0, 9 to 0), sent)
+    }
+
+    @Test fun newStartCancelsUnqueuedVoiceOffAfterPartialStop() {
+        val sent = mutableListOf<Pair<Int, Int>>()
+        var rejectVoiceOff = false
+        val mic = IccoaMicrophone({ method, body ->
+            val value = ProtoReader(body).int(if (method == 9) 4 else 1)
+            val accepted = !(rejectVoiceOff && method == 9 && value == 0)
+            if (accepted) sent += method to value
+            accepted
+        }, {})
+        mic.setWanted(true)
+        rejectVoiceOff = true
+        mic.setWanted(false)
+        mic.setWanted(true)
+        rejectVoiceOff = false
+        assertFalse(mic.flush())
+        assertEquals(listOf(9 to 1, 6 to 1, 6 to 0, 6 to 1), sent)
+    }
+
+    @Test fun phoneStateProviderIsEvaluatedAgainWhenRetryingAndDoesNotSupplyCallState() {
+        var locked = false
+        var available = false
+        val attempted = mutableListOf<ByteArray>()
+        val mic = IccoaMicrophone({ method, body ->
+            if (method == 9) attempted += body
+            available
+        }, {}, phoneStateBody = { voice ->
+            ProtoWriter().bool(2, locked).bool(4, voice).bool(5, false).bool(6, false).toByteArray()
+        })
+        mic.setWanted(true)
+        locked = true
+        available = true
+        assertFalse(mic.flush())
+        mic.close()
+        assertEquals(3, attempted.size)
+        assertEquals(0, ProtoReader(attempted[0]).int(2))
+        assertEquals(1, ProtoReader(attempted[1]).int(2))
+        assertEquals(1, ProtoReader(attempted[1]).int(4))
+        assertEquals(0, ProtoReader(attempted[2]).int(4))
+        for (body in attempted) assertEquals(-1, ProtoReader(body).int(1, -1))
+    }
+
+    @Test fun temporaryPhoneStateFailureKeepsTheTransitionPending() {
+        var failed = true
+        val sent = mutableListOf<Int>()
+        val mic = IccoaMicrophone({ method, _ -> sent += method; true }, {},
+            phoneStateBody = { voice ->
+                if (failed) throw IllegalStateException("phone state unavailable")
+                ProtoWriter().bool(4, voice).toByteArray()
+            })
+        mic.setWanted(true)
+        assertTrue(mic.flush())
+        assertTrue(sent.isEmpty())
+        failed = false
+        assertFalse(mic.flush())
+        assertEquals(listOf(9, 6), sent)
     }
 
     @Test fun inputDiagnosticsDistinguishSilenceFromPcmSignal() {
@@ -95,7 +212,7 @@ class IccoaMicrophoneTest {
         assertTrue(logs.any { it.contains("packets=2 bytes=6 peak=32768") })
         mic.setWanted(true)
         mic.setWanted(false)
-        assertTrue(logs.last().contains("off queued"))
+        assertTrue(logs.last().contains("car voice off queued"))
         assertTrue(logs.any { it.contains("packets=0 bytes=0 peak=0") })
     }
 }

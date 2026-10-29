@@ -70,7 +70,6 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import app.ft.carlife.GearAction
 import app.ft.carlife.WheelAction
-import app.ft.carlife.JoinWatch
 import app.ft.ui.components.AaMissing
 import app.ft.ui.components.AaStart
 import app.ft.ui.components.rememberRootGranted
@@ -249,7 +248,10 @@ private fun PageContent(page: SettingsPage) {
             QuietShareSetting()
         }
         SettingsPage.CAR -> {
-            if (CarProtocolSetting() == CarProtocol.ICCOA) {
+            val protocol = CarProtocolSetting()
+            BoolSetting(stringResource(R.string.car_bt_reconnect), p.carBtReconnect,
+                detail = stringResource(R.string.car_bt_reconnect_about)) { p.carBtReconnect = it }
+            if (protocol == CarProtocol.ICCOA) {
                 Text(stringResource(R.string.iccoa_settings_about), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 BluetoothCallsSetting()
             } else {
@@ -257,16 +259,7 @@ private fun PageContent(page: SettingsPage) {
                 TextSetting(stringResource(R.string.car_p2p_label), p.carP2pName) { p.carP2pName = it }
                 TextSetting(stringResource(R.string.car_bt_label), p.carBtName) { p.carBtName = it }
                 TextSetting(stringResource(R.string.car_pin_label), p.carWpsPin) { p.carWpsPin = it }
-                var timeout by remember { mutableIntStateOf(p.carJoinTimeoutSeconds) }
-                PickSetting(
-                    stringResource(R.string.car_join_timeout),
-                    JoinWatch.TIMEOUT_SECONDS.map { Option(stringResource(R.string.car_join_timeout_seconds, it)) },
-                    JoinWatch.TIMEOUT_SECONDS.indexOf(timeout),
-                    about = stringResource(R.string.car_join_timeout_about)
-                ) { index ->
-                    timeout = JoinWatch.TIMEOUT_SECONDS[index]
-                    p.carJoinTimeoutSeconds = timeout
-                }
+                CarJoinTimeoutSetting(p.carJoinTimeoutSeconds) { p.carJoinTimeoutSeconds = it }
                 BoolSetting(stringResource(R.string.car_swap_keys), p.swapTrackKeys) { p.swapTrackKeys = it }
                 Text(stringResource(R.string.wheel_title), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
                 Text(

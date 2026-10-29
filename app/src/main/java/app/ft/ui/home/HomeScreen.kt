@@ -40,6 +40,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Warning
 import app.ft.ui.car.CarIcons
 import androidx.compose.material3.Card
@@ -97,6 +98,7 @@ import app.ft.iccoa.IccoaService
 import app.ft.projection.CarControls
 import app.ft.ui.components.rememberCarProtocol
 import app.ft.ui.components.CarProtocolSetting
+import app.ft.ui.components.BluetoothCallsSetting
 import app.ft.carlife.CarLifeSession
 import app.ft.carlife.CarState
 import androidx.compose.ui.res.stringResource
@@ -200,6 +202,10 @@ fun HomeScreen(pad: PaddingValues, onOpenAccessibility: () -> Unit, onOpenOverla
             }
         }
 
+        if (iccoa) item {
+            BluetoothCallsSetting(prominent = true, projectionConnected = connected)
+        }
+
         if (disconnectHelp) item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -272,7 +278,14 @@ fun HomeScreen(pad: PaddingValues, onOpenAccessibility: () -> Unit, onOpenOverla
                         if (refused != 0) Notice(stringResource(refused), stringResource(R.string.home_use_mode, stringResource(if (direct) R.string.mode_hotspot else R.string.mode_direct))) { pickMode(if (direct) 0 else 1) }
                     }
                     if (direct && running && !connected) {
-                        TextButton(onClick = { CarLifeService.tryAgain() }, modifier = Modifier.align(Alignment.End)) { Text(stringResource(R.string.home_try_again)) }
+                        FilledTonalButton(
+                            onClick = { CarLifeService.tryAgain() },
+                            modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+                        ) {
+                            Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.home_try_again))
+                        }
                     }
                 }
             }
@@ -390,10 +403,15 @@ private fun directSteps(
         !radios.location -> StepItem(stringResource(R.string.step_wifi_on), false, hint = stringResource(R.string.step_wifi_needs_location), action = stringResource(R.string.action_turn_on), onAction = { Fixes.open(context, Fixes.location()) })
         else -> StepItem(stringResource(R.string.step_wifi_on), true)
     }
+    val carFound = car.btCar != null || car.wifiDirect || connected
     return listOf(
         bluetooth,
         wifi,
-        StepItem(stringResource(R.string.step_car_found), car.btCar != null || car.carWifi != null, hint = if (running) stringResource(R.string.step_waiting_bt) else null),
+        StepItem(
+            stringResource(if (carFound) R.string.step_car_found else R.string.tile_looking),
+            carFound,
+            hint = if (running) car.carWifi?.let { stringResource(R.string.step_joining, it) } ?: stringResource(R.string.step_waiting_bt) else null
+        ),
         StepItem(
             stringResource(R.string.step_wifi_direct_connected),
             car.wifiDirect,

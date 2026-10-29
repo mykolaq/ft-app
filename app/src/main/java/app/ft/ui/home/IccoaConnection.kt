@@ -37,7 +37,6 @@ import app.ft.iccoa.IccoaPhase
 import app.ft.iccoa.IccoaService
 import app.ft.iccoa.IccoaState
 import app.ft.ui.components.ReportButton
-import app.ft.ui.components.BluetoothCallsSetting
 
 internal class IccoaConnectionActions(val denied: Boolean, val start: (scanAgain: Boolean) -> Unit)
 
@@ -136,7 +135,6 @@ internal fun IccoaConnectionControls(state: IccoaState, actions: IccoaConnection
             FilledTonalButton(onClick = { actions.start(true) }, enabled = !busy) { Text(stringResource(R.string.iccoa_scan_again)) }
         }
         if (!state.connected && !state.connecting) Text(stringResource(R.string.iccoa_device_count, scan.peers.size))
-        BluetoothCallsSetting()
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(R.string.iccoa_report), Modifier.weight(1f))
             ReportButton()

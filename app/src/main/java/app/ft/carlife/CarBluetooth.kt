@@ -9,6 +9,7 @@ import android.content.Context
 import app.ft.core.DiagLog
 import app.ft.core.Prefs
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -155,7 +156,13 @@ class CarBluetooth(context: Context, private val prefs: Prefs, private val scope
                 delay(1000)
                 continue
             }
-            talk(owner, call.first, call.second)
+            try {
+                talk(owner, call.first, call.second)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                DiagLog.e(tag, "bluetooth session failed, waiting for the car to reconnect", e)
+            }
             delay(800)
         }
     }

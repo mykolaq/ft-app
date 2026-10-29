@@ -32,6 +32,7 @@ import app.ft.aa.AaTouchViewport
 import app.ft.aa.AaHeadUnitService
 import app.ft.aa.AaSession
 import app.ft.core.CarAudioBus
+import app.ft.core.CarBluetoothReconnect
 import app.ft.core.DiagLog
 import app.ft.core.CarProtocol
 import app.ft.supercast.SuperCast
@@ -53,6 +54,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -60,6 +63,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import app.ft.core.Lang
 import kotlinx.coroutines.flow.drop
 
@@ -252,6 +256,8 @@ class CarLifeService : Service() {
     private var callWatch: Any? = null
     private var callPoll: Job? = null
     private var resumePhoneAudio: Pair<MediaProjection, Long>? = null
+    @Volatile private var callRecovery: Any? = null
+    private var callRecoveryJob: Job? = null
     private var p2pWatch: Job? = null
     @Volatile private var note: () -> String = { Lang.str(R.string.app_name) }
     private var wakeLock: PowerManager.WakeLock? = null
@@ -466,6 +472,7 @@ class CarLifeService : Service() {
     @Volatile private var carP2pIp: String? = null
     private val bt by lazy { CarBluetooth(this, app.prefs, scope) }
     private val btAudio by lazy { CarBtAudio(this) }
+    private var bluetoothReconnect: CarBluetoothReconnect? = null
     private fun step(text: String) {
         DiagLog.i(tag, text)
         _state.update { it.copy(step = text) }
@@ -499,6 +506,7 @@ class CarLifeService : Service() {
         watchHeat()
         MirrorSink.onGone = { surface -> if (mirror.isShowing(surface)) mirror.hide() }
         watchCarBluetoothAudio()
+        bluetoothReconnect = CarBluetoothReconnect(this, app.prefs).also { it.start() }
         watchUsb()
         progressJob = scope.launch {
             CarPlayer.state.collect { st -> songPosition(st) }
@@ -876,11 +884,10 @@ class CarLifeService : Service() {
         bt.onFrame = { frame -> wireless.feed(frame) }
         bt.onStep = { text -> step(text) }
         bt.onCar = { name ->
+            _state.update { it.copy(btCar = name) }
             if (name != null) {
-                _state.update { it.copy(btCar = name) }
                 step("'$name' called over bluetooth")
-                wireless.reset()
-                wireless.begin()
+                wireless.restart()
             }
         }
         step("Waiting for the car to call over bluetooth")
@@ -971,11 +978,12 @@ class CarLifeService : Service() {
         p2pWatch = null
         beacon.stop()
         discovery.stop()
+        // Cancel pending retry preparation before closing/resetting its transport.
+        stopFinder()
         bt.stop()
         bt.onCar = null
         bt.onFrame = null
         wireless.reset()
-        stopFinder()
         p2pIface = null
         carP2pIp = null
         session?.stop()
@@ -1037,6 +1045,7 @@ class CarLifeService : Service() {
             }
         }
         f.onRetry = { _, attempt -> step("Still joining the car's WiFi Direct, trying again (try $attempt)") }
+        f.onRetryReady = { groupKept -> prepareWirelessRetry(f, groupKept) }
         f.onLeft = {
             ipJob?.cancel()
             p2pIface = null
@@ -1062,19 +1071,40 @@ class CarLifeService : Service() {
         finder = null
     }
 
-    private fun retry() {
-        if (mode != 1) return
-        DiagLog.i(tag, "trying the car again, keeping whatever is already connected")
-        if (bt.open) {
-            step("Asking the car again over bluetooth")
-            wireless.reset()
-            wireless.begin()
-        } else {
+    internal suspend fun prepareWirelessRetry(f: CarFinder, groupKept: Boolean) {
+        val needsBluetooth = withContext(Dispatchers.IO) {
+            val job = currentCoroutineContext()
+            // A Bluetooth write can hold this monitor. Never wait for it on Main,
+            // and recheck cancellation after acquiring it, not only before waiting.
+            synchronized(wireless) {
+                job.ensureActive()
+                if (mode != 1 || finder !== f || wifiLink?.connected == true) return@synchronized false
+                DiagLog.i(tag, "preparing a new wireless exchange after WiFi Direct recovery; groupKept=$groupKept bluetoothOpen=${bt.open}")
+                if (bt.open) {
+                    step("Asking the car again over bluetooth")
+                    wireless.restart(keepIp = groupKept)
+                    false
+                } else {
+                    wireless.reset(keepIp = groupKept)
+                    true
+                }
+            }
+        }
+        // Resume on the caller's Main dispatcher. A cancelled old worker must
+        // never restart the Bluetooth listener after stopLink has closed it.
+        currentCoroutineContext().ensureActive()
+        if (needsBluetooth && mode == 1 && finder === f && wifiLink?.connected != true) {
             bt.start()
             wakeCarBluetooth()
         }
+    }
+
+    private fun retry() {
+        if (mode != 1 || wifiLink?.connected == true) return
+        DiagLog.i(tag, "manual connection retry requested")
+        _state.update { it.copy(joinTimedOutSeconds = 0) }
         startFinder()
-        finder?.checkExisting()
+        finder?.retry()
         updateBeacon()
     }
 
@@ -1224,16 +1254,34 @@ class CarLifeService : Service() {
             m == android.media.AudioManager.MODE_IN_CALL ||
             m == android.media.AudioManager.MODE_IN_COMMUNICATION
         if (calling == CarAudioBus.inCall) return
-        if (calling) resumePhoneAudio = if (audio.active) projection?.let { it to audio.startedAt } else null
+        if (calling) {
+            callRecovery = null
+            callRecoveryJob?.cancel()
+            resumePhoneAudio = if (audio.active) projection?.let { it to audio.startedAt } else null
+        }
         CarAudioBus.inCall = calling
         DiagLog.i(tag, if (calling) "phone call started, the car's voice channel stays closed until it ends" else "phone call ended")
         val resume = resumePhoneAudio
         if (!calling && resume != null) {
             resumePhoneAudio = null
-            soundLater {
-                if (session?.projecting != true || CarAudioBus.inCall || projection !== resume.first || audio.startedAt != resume.second) return@soundLater
-                audio.stop()
-                startAudioToCar()
+            val ticket = Any()
+            callRecovery = ticket
+            recoverCallAudio(resume, ticket, 0)
+        }
+    }
+
+    private fun recoverCallAudio(resume: Pair<MediaProjection, Long>, ticket: Any, attempt: Int) {
+        soundLater {
+            if (callRecovery !== ticket || session?.projecting != true || CarAudioBus.inCall ||
+                projection !== resume.first || audio.startedAt != resume.second) return@soundLater
+            if (attempt == 0) audio.stop() else if (audio.active) return@soundLater
+            val result = startAudioToCar()
+            if (result != AudioStart.SKIPPED && attempt < 3) {
+                val next = resume.first to audio.startedAt
+                callRecoveryJob = scope.launch {
+                    delay(750)
+                    recoverCallAudio(next, ticket, attempt + 1)
+                }
             }
         }
     }
@@ -1266,6 +1314,9 @@ class CarLifeService : Service() {
         callPoll?.cancel()
         callPoll = null
         resumePhoneAudio = null
+        callRecovery = null
+        callRecoveryJob?.cancel()
+        callRecoveryJob = null
         CarAudioBus.inCall = false
     }
 
@@ -2048,15 +2099,20 @@ class CarLifeService : Service() {
 
     private fun soundToCar() = soundLater { startAudioToCar() }
 
-    private fun startAudioToCar() {
-        if (audio.active) return
-        if (carPlaysOurSound()) return
+    private enum class AudioStart { RUNNING, FAILED, SKIPPED }
+
+    private fun startAudioToCar(): AudioStart {
+        if (audio.active) return AudioStart.RUNNING
+        if (carPlaysOurSound()) return AudioStart.SKIPPED
         if (!canRecord()) {
             DiagLog.w(tag, "no microphone permission, the car will get picture without sound")
-            return
+            return AudioStart.SKIPPED
         }
-        val mp = ensureProjection({ Lang.str(R.string.note_sound) }, quiet = true) ?: return
-        if (audio.start(mp)) silencePhone()
+        val mp = ensureProjection({ Lang.str(R.string.note_sound) }, quiet = true) ?: return AudioStart.SKIPPED
+        return if (audio.start(mp)) {
+            silencePhone()
+            AudioStart.RUNNING
+        } else AudioStart.FAILED
     }
 
     private fun carPlaysOurSound(): Boolean {
@@ -2576,6 +2632,7 @@ class CarLifeService : Service() {
     }
 
     override fun onDestroy() {
+        bluetoothReconnect?.close(); bluetoothReconnect = null
         app.prefs.unregisterListener(navigationPreferenceListener)
         teardown()
         soundQueue.shutdown()

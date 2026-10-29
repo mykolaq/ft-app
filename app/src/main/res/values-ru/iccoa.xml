@@ -34,7 +34,11 @@
     <string name="bluetooth_calls_title">Звонки по Bluetooth</string>
     <string name="bluetooth_calls_checking">Проверяем подключение для звонков…</string>
     <string name="bluetooth_calls_connected">Подключено для звонков: %1$s</string>
-    <string name="bluetooth_calls_disconnected">Устройство для звонков не подключено</string>
+    <string name="bluetooth_calls_disconnected">Профиль звонков Bluetooth (HFP) не подключён.</string>
+    <string name="bluetooth_calls_not_connected">Звонки через магнитолу не подключены</string>
+    <string name="bluetooth_calls_not_checked">Подключение звонков не проверено</string>
+    <string name="bluetooth_calls_projection_only">Проекция ICCOA подключена, но звонки через магнитолу недоступны. В настройках Bluetooth выберите автомобиль и включите «Телефонные вызовы» (HFP).</string>
+    <string name="bluetooth_calls_connect_help">Чтобы слышать звонки через магнитолу, выберите автомобиль в настройках Bluetooth и включите «Телефонные вызовы» (HFP).</string>
     <string name="bluetooth_calls_off">Bluetooth выключен</string>
     <string name="bluetooth_calls_permission">Разрешите FT доступ к устройствам поблизости для проверки подключения звонков.</string>
     <string name="bluetooth_calls_unavailable">Не удалось проверить подключение звонков. Проверьте его в настройках Bluetooth.</string>

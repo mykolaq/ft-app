@@ -87,10 +87,16 @@
     <string name="car_name_label">Name shown to the head unit</string>
     <string name="car_p2p_label">WiFi Direct name (blank = any CarLife)</string>
     <string name="car_bt_label">Bluetooth name for auto-start (blank = any)</string>
+    <string name="car_bt_reconnect">Reconnect car Bluetooth</string>
+    <string name="car_bt_reconnect_about">While FT is on, try up to three times after a disconnect, only if the last paired car is found nearby. The car must be discoverable. Availability depends on your phone.</string>
     <string name="car_pin_label">WiFi Direct PIN (blank = push button)</string>
     <string name="car_join_timeout">Wi-Fi Direct connection timeout</string>
     <string name="car_join_timeout_about">How long to wait before retrying an unanswered connection attempt. Increase this if the car takes longer to connect. Applies to the next attempt.</string>
     <string name="car_join_timeout_seconds">%1$d s</string>
+    <string name="car_join_timeout_custom">Custom value…</string>
+    <string name="car_join_timeout_custom_value">%1$d s (custom)</string>
+    <string name="car_join_timeout_input">Timeout, seconds</string>
+    <string name="car_join_timeout_range">Enter a whole number from %1$d to %2$d seconds.</string>
     <string name="car_swap_keys">Swap the steering wheel\'s next and previous</string>
     <string name="sound_bluetooth">Use the car\'s bluetooth for sound instead</string>
     <string name="sound_silence_phone">Silence the phone while FT streams the sound</string>

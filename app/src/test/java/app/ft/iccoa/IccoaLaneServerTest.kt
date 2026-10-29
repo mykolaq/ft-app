@@ -45,6 +45,29 @@ class IccoaLaneServerTest {
     private fun failure(future: Future<*>): Throwable =
         assertThrows(ExecutionException::class.java) { future.get(3, TimeUnit.SECONDS) }.cause!!
 
+    @Test fun lateControlEventsRemainVisibleAfterAudioAndRepeatedMethodsWithoutPayloads() {
+        Harness().use { h ->
+            val logs = LinkedBlockingQueue<String>()
+            val received = CountDownLatch(166)
+            val (lane, _) = h.lane(IccoaLaneServer.AUDIO_PORT,
+                onFrame = { received.countDown() }, log = { logs.add(it) })
+            val stream = h.connect(lane).getOutputStream()
+            repeat(20) { stream.write(IccoaControl.frame(4, 9, 0, byteArrayOf(1, 2), it)) }
+            repeat(128) { stream.write(IccoaControl.frame(1, 40, 0, "private-value".toByteArray(), it)) }
+            repeat(16) { stream.write(IccoaControl.frame(1, 1, 0, byteArrayOf(), it)) }
+            stream.write(IccoaControl.frame(1, 25, 0, byteArrayOf(1), 164))
+            stream.write(IccoaControl.frame(1, 16, 0, byteArrayOf(), 165))
+            assertTrue(received.await(3, TimeUnit.SECONDS))
+            val frames = logs.filter { it.contains(" frame ") }
+            assertEquals(12, frames.count { it.contains("category=4 method=9 ") })
+            assertEquals(9, frames.count { it.contains("category=1 method=40 ") })
+            assertEquals(1, frames.count { it.contains("category=1 method=25 ") })
+            assertEquals(1, frames.count { it.contains("category=1 method=16 ") })
+            assertFalse(frames.any { it.contains("category=1 method=1 ") })
+            assertFalse(logs.any { it.contains("private-value") })
+        }
+    }
+
     @Test fun auxiliaryEofAllowsReconnectWhileControlStillReceivesAuthenticatedFrames() {
         Harness().use { h ->
             val logs = LinkedBlockingQueue<String>()

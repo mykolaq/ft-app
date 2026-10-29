@@ -5,14 +5,17 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.app.KeyguardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Build
+import android.os.BatteryManager
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import app.ft.FTApp
 import app.ft.MainActivity
@@ -20,6 +23,7 @@ import app.ft.R
 import app.ft.aa.AaHeadUnitService
 import app.ft.core.CarProtocol
 import app.ft.core.DiagLog
+import app.ft.core.ProtoWriter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -67,6 +71,7 @@ class IccoaService : Service() {
     }
 
     private var bluetoothCalls: app.ft.core.BluetoothCalls? = null
+    private var bluetoothReconnect: app.ft.core.CarBluetoothReconnect? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -100,6 +105,9 @@ class IccoaService : Service() {
         if (bluetoothCalls == null) {
             bluetoothCalls = app.ft.core.BluetoothCalls(this).also { it.start() }
         }
+        if (bluetoothReconnect == null) {
+            bluetoothReconnect = app.ft.core.CarBluetoothReconnect(this, prefs).also { it.start() }
+        }
         val wasRunning = _state.value.running
         _state.update { it.copy(running = true) }
         when (intent?.action) {
@@ -129,7 +137,8 @@ class IccoaService : Service() {
         val carMicrophone = IccoaMicrophone(
             sendControl = { method, body -> connection.sendControl(method, body) },
             onPcm = { pcm -> if (generation == token) AaHeadUnitService.feedCarMicrophone(pcm) },
-            log = { DiagLog.i("ICCOA", it) })
+            log = { DiagLog.i("ICCOA", it) },
+            phoneStateBody = ::phoneState)
         microphone = carMicrophone
         val hook: (Boolean) -> Unit = { wanted ->
             carMicrophone.setWanted(wanted)
@@ -193,12 +202,28 @@ class IccoaService : Service() {
             status = "Connected · ${plan.streamWidth}×${plan.streamHeight} · ${plan.fps} fps") }
     }
 
+    /** Reference 7.62 phone state: no experimental call-state field is advertised. */
+    private fun phoneState(voice: Boolean): ByteArray {
+        val locked = getSystemService(KeyguardManager::class.java)?.isKeyguardLocked == true
+        val battery = getSystemService(BatteryManager::class.java)
+        val capacity = battery?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: -1
+        val charging = battery?.isCharging == true
+        val thermal = getSystemService(PowerManager::class.java)?.currentThermalStatus ?: 0
+        return ProtoWriter().bool(2, locked).bool(4, voice)
+            .bool(5, capacity in 0..15 && !charging)
+            .bool(6, thermal >= PowerManager.THERMAL_STATUS_SEVERE).toByteArray()
+    }
+
     private fun control(category: Int, method: Int, body: ByteArray) {
         if (category != 1) return
         when (method) {
             4 -> lastVideoConfig?.let(::play)
             5, 41 -> pauseProjection()
+            16 -> projection?.key(84) // Same AA voice/search key as the CarLife voice button.
             23 -> connectionFailed("The car disconnected")
+            25 -> runCatching { IccoaCarConfig.describe(body) }
+                .onSuccess { DiagLog.i("ICCOA", "Car config: $it") }
+                .onFailure { DiagLog.w("ICCOA", "Car config unreadable: bytes=${body.size} ${it.javaClass.simpleName}") }
             26 -> session?.sendControl(27, byteArrayOf())
         }
     }
@@ -269,6 +294,7 @@ class IccoaService : Service() {
         }
 
     override fun onDestroy() {
+        bluetoothReconnect?.close(); bluetoothReconnect = null
         bluetoothCalls?.close(); bluetoothCalls = null
         discovery?.stop(); discovery = null
         endConnection()
