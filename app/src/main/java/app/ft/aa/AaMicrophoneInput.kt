@@ -1,5 +1,7 @@
 package app.ft.aa
 
+import app.ft.core.Pcm16Diagnostics
+
 /** Serializes the two PCM producers and rejects callbacks from a previous voice request. */
 internal class AaMicrophoneInput(
     private val send: (ByteArray) -> Unit,
@@ -13,7 +15,7 @@ internal class AaMicrophoneInput(
     private var carPackets = 0L
     private var phoneBytes = 0L
     private var carBytes = 0L
-    private var peak = 0
+    private val diagnostics = Pcm16Diagnostics({ log("microphone $it") })
 
     @get:Synchronized val phoneAllowed: Boolean get() = wanted && !carSelected
 
@@ -26,7 +28,7 @@ internal class AaMicrophoneInput(
             carPackets = 0
             phoneBytes = 0
             carBytes = 0
-            peak = 0
+            diagnostics.reset()
         }
         return generation
     }
@@ -53,16 +55,14 @@ internal class AaMicrophoneInput(
     private fun valid(pcm: ByteArray) = pcm.isNotEmpty() && pcm.size % 2 == 0
 
     private fun forward(pcm: ByteArray) {
-        for (i in pcm.indices step 2) {
-            val sample = ((pcm[i].toInt() and 0xff) or (pcm[i + 1].toInt() shl 8)).toShort().toInt()
-            peak = maxOf(peak, kotlin.math.abs(sample))
-        }
+        diagnostics.record(pcm)
         send(pcm)
     }
 
     @Synchronized fun close() {
         if (!wanted) return
         wanted = false
-        log("microphone send attempts: phonePackets=$phonePackets phoneBytes=$phoneBytes carPackets=$carPackets carBytes=$carBytes peak=$peak")
+        val timing = diagnostics.finish()
+        log("microphone send attempts: phonePackets=$phonePackets phoneBytes=$phoneBytes carPackets=$carPackets carBytes=$carBytes peak=${diagnostics.peak} $timing")
     }
 }

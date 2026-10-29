@@ -53,12 +53,12 @@ class AaMicrophoneInputTest {
         input.car(byteArrayOf(0, -128, 1, 0))
         input.phone(token, byteArrayOf(1, 0))
         input.close()
-        assertEquals("microphone send attempts: phonePackets=1 phoneBytes=2 carPackets=1 carBytes=4 peak=32768", logs.last())
+        assertTrue(logs.last().startsWith("microphone send attempts: phonePackets=1 phoneBytes=2 carPackets=1 carBytes=4 peak=32768 "))
         val second = input.open()
         assertEquals(second, input.open())
         input.phone(second, byteArrayOf(2, 0))
         input.close()
-        assertEquals("microphone send attempts: phonePackets=1 phoneBytes=2 carPackets=0 carBytes=0 peak=2", logs.last())
+        assertTrue(logs.last().startsWith("microphone send attempts: phonePackets=1 phoneBytes=2 carPackets=0 carBytes=0 peak=2 "))
     }
 
     @Test fun aRepeatedOpenDoesNotAllowRestartingThePhoneAfterSelectingTheCar() {

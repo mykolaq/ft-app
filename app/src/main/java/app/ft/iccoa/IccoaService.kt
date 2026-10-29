@@ -138,7 +138,8 @@ class IccoaService : Service() {
             sendControl = { method, body -> connection.sendControl(method, body) },
             onPcm = { pcm -> if (generation == token) AaHeadUnitService.feedCarMicrophone(pcm) },
             log = { DiagLog.i("ICCOA", it) },
-            phoneStateBody = ::phoneState)
+            phoneStateBody = ::phoneState,
+            gain = { FTApp.instance.prefs.iccoaMicGain })
         microphone = carMicrophone
         val hook: (Boolean) -> Unit = { wanted ->
             carMicrophone.setWanted(wanted)

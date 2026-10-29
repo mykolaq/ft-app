@@ -116,6 +116,9 @@ class Prefs(context: Context) {
     var carBtName: String get() = str("carBtName", ""); set(v) = set("carBtName", v)
     var carBtAddress: String get() = str("carBtAddress", ""); set(v) = set("carBtAddress", v)
     var carBtReconnect: Boolean get() = bool("carBtReconnect", false); set(v) = set("carBtReconnect", v)
+    var iccoaMicGain: Int
+        get() = Pcm16Gain.clamp(int("iccoaMicGain", 1))
+        set(v) = set("iccoaMicGain", Pcm16Gain.clamp(v))
     var swapTrackKeys: Boolean get() = bool("swapTrackKeys", false); set(v) = set("swapTrackKeys", v)
     var guidanceMode: Int get() = int("directions", CarAudioBus.GUIDANCE_UNTOUCHED); set(v) = set("directions", v)
     var linkMode: Int get() = int("linkMode", 0); set(v) = set("linkMode", v)

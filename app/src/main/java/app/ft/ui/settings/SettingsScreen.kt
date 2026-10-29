@@ -254,6 +254,7 @@ private fun PageContent(page: SettingsPage) {
             if (protocol == CarProtocol.ICCOA) {
                 Text(stringResource(R.string.iccoa_settings_about), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 BluetoothCallsSetting()
+                IccoaMicrophoneGainSetting(p.iccoaMicGain) { p.iccoaMicGain = it }
             } else {
                 TextSetting(stringResource(R.string.car_name_label), p.carName) { p.carName = it }
                 TextSetting(stringResource(R.string.car_p2p_label), p.carP2pName) { p.carP2pName = it }

@@ -471,4 +471,7 @@
     <string name="aa_show_return_button">Show the FT return button in Android Auto</string>
     <string name="aa_show_return_button_about">The button returns to FT. In Alternative, it sits beside Android Auto without covering its controls. If hidden, you can show it again from these settings on your phone.</string>
     <string name="aa_back_to_ft">Back to FT</string>
+    <string name="iccoa_mic_gain">ICCOA microphone gain</string>
+    <string name="iccoa_mic_gain_value">×%1$d</string>
+    <string name="iccoa_mic_gain_about">Amplifies the car microphone for Android Auto. ×1 keeps the original level. Choose a value from ×1 to ×16; high values can distort speech. Applies to the next voice request.</string>
 </resources>

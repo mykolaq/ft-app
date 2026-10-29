@@ -469,4 +469,7 @@
     <string name="aa_show_return_button">Показывать кнопку возврата в FT в Android Auto</string>
     <string name="aa_show_return_button_about">Кнопка возвращает в FT. В альтернативном оформлении она размещается рядом с Android Auto и не перекрывает его элементы. Если скрыть её, вернуть кнопку можно в этих настройках на телефоне.</string>
     <string name="aa_back_to_ft">Вернуться в FT</string>
+    <string name="iccoa_mic_gain">Усиление микрофона ICCOA</string>
+    <string name="iccoa_mic_gain_value">×%1$d</string>
+    <string name="iccoa_mic_gain_about">Усиливает микрофон магнитолы для Android Auto. ×1 сохраняет исходный уровень. Можно выбрать от ×1 до ×16; высокие значения могут искажать речь. Применяется со следующего голосового запроса.</string>
 </resources>

@@ -69,7 +69,7 @@ class AaSession(
     private val navigation = AaNavigation()
     private val music = AaMusic()
     private val mic = AaMicrophone { }
-    private val microphoneInput = AaMicrophoneInput(::sendMicrophone, { mic.stop() }, { DiagLog.i(tag, it) })
+    private val microphoneInput = AaMicrophoneInput(::sendMicrophone, { mic.stopAsync() }, { DiagLog.i(tag, it) })
     private var microphoneGeneration = 0L
     @Volatile private var micWanted = false
     @Volatile private var carMicAt = 0L

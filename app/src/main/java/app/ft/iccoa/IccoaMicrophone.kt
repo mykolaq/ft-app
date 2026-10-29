@@ -1,6 +1,8 @@
 package app.ft.iccoa
 
 import app.ft.core.ProtoWriter
+import app.ft.core.Pcm16Diagnostics
+import app.ft.core.Pcm16Gain
 
 /** ICCOA car microphone: 16 kHz mono PCM16, delivered on the audio lane as method 9. */
 internal class IccoaMicrophone(
@@ -9,7 +11,8 @@ internal class IccoaMicrophone(
     private val log: (String) -> Unit = {},
     private val phoneStateBody: (Boolean) -> ByteArray = { voice ->
         ProtoWriter().bool(4, voice).toByteArray()
-    }
+    },
+    private val gain: () -> Int = { 1 }
 ) : AutoCloseable {
     private var wanted = false
     private var microphoneQueued = false
@@ -17,12 +20,17 @@ internal class IccoaMicrophone(
     private var closed = false
     private var packets = 0L
     private var bytes = 0L
-    private var peak = 0
+    private val diagnostics = Pcm16Diagnostics({ log("car microphone $it") })
+    private var amplifier = Pcm16Gain()
 
     @Synchronized fun setWanted(value: Boolean) {
         if (closed) return
         if (wanted && !value) summary()
-        if (!wanted && value) { packets = 0; bytes = 0; peak = 0 }
+        if (!wanted && value) {
+            packets = 0; bytes = 0; diagnostics.reset()
+            amplifier = Pcm16Gain(gain())
+            log("car microphone gain=${amplifier.multiplier}x")
+        }
         wanted = value
         flush()
     }
@@ -60,21 +68,22 @@ internal class IccoaMicrophone(
     }
 
     fun receive(method: Int, pcm: ByteArray) {
-        synchronized(this) {
+        val output = synchronized(this) {
             if (closed || !wanted || method != 9 || pcm.isEmpty() || pcm.size % 2 != 0) return
             packets++
             bytes += pcm.size
-            for (i in pcm.indices step 2) {
-                val sample = ((pcm[i].toInt() and 255) or (pcm[i + 1].toInt() shl 8)).toShort().toInt()
-                peak = maxOf(peak, kotlin.math.abs(sample))
-            }
-            if (packets == 1L) log("car microphone first PCM packet: ${pcm.size} bytes, peak=$peak")
+            diagnostics.record(pcm)
+            if (packets == 1L) log("car microphone first PCM packet: ${pcm.size} bytes, peak=${diagnostics.peak}")
+            amplifier.apply(pcm)
         }
         // This runs on the separate ICCOA audio reader, never on the main/UI thread.
-        onPcm(pcm)
+        onPcm(output)
     }
 
-    private fun summary() { log("car microphone input: packets=$packets bytes=$bytes peak=$peak") }
+    private fun summary() {
+        val timing = diagnostics.finish()
+        log("car microphone input: packets=$packets bytes=$bytes peak=${diagnostics.peak} $timing gain=${amplifier.multiplier}x gainClipped=${amplifier.clippedSamples}")
+    }
 
     @Synchronized override fun close() {
         if (closed) return

@@ -6,6 +6,30 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class IccoaMicrophoneTest {
+    @Test fun gainIsAppliedAfterRawDiagnosticsAndChangesOnNextVoiceRequest() {
+        var selected = 2
+        val received = mutableListOf<ByteArray>()
+        val logs = mutableListOf<String>()
+        val mic = IccoaMicrophone({ _, _ -> true }, { received += it }, logs::add,
+            gain = { selected })
+        val input = byteArrayOf(0, 64, 0, -64) // +16384, -16384
+        mic.setWanted(true)
+        mic.receive(9, input)
+        selected = 1
+        mic.setWanted(true) // A duplicate request must not reset gain or counters.
+        mic.receive(9, input)
+        mic.setWanted(false)
+        assertArrayEquals(byteArrayOf(-1, 127, 0, -128), received[0])
+        assertArrayEquals(received[0], received[1])
+        assertArrayEquals(byteArrayOf(0, 64, 0, -64), input)
+        assertTrue(logs.any { it.contains("packets=2 bytes=8 peak=16384") && it.contains("gain=2x gainClipped=2") })
+        mic.setWanted(true)
+        mic.receive(9, input)
+        mic.setWanted(false)
+        assertSame(input, received[2])
+        assertTrue(logs.any { it.contains("packets=1 bytes=4 peak=16384") && it.contains("gain=1x gainClipped=0") })
+    }
+
     @Test fun microphoneRequestUsesReferencePcmFormatAndStopsOnClose() {
         val states = mutableListOf<Pair<Int, Int>>()
         val mic = IccoaMicrophone({ method, bytes ->

@@ -11,12 +11,14 @@ class AaMicrophone(private val onPcm: (ByteArray) -> Unit) {
     @Volatile private var running = AtomicBoolean(false)
     private var record: AudioRecord? = null
     private var thread: Thread? = null
+    private var cleanupThread: Thread? = null
 
     val active: Boolean get() = running.get()
 
     @Synchronized fun start(deliver: (ByteArray) -> Unit = onPcm): Boolean {
         if (running.get()) return true
         return try {
+            awaitCleanup()
             val min = AudioRecord.getMinBufferSize(RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
             val r = AudioRecord(
                 MediaRecorder.AudioSource.VOICE_RECOGNITION,
@@ -64,12 +66,47 @@ class AaMicrophone(private val onPcm: (ByteArray) -> Unit) {
     }
 
     @Synchronized fun stop() {
-        if (!running.getAndSet(false)) return
-        runCatching { record?.stop() }
-        runCatching { record?.release() }
+        closeRecord(detachRecord())
+        awaitCleanup()
+    }
+
+    @Synchronized fun stopAsync() {
+        val stoppedRecord = detachRecord() ?: return
+        // AudioRecord.stop/release can block. The car PCM reader only detaches this
+        // capture; a later phone start waits for cleanup before acquiring the device.
+        cleanupThread = Thread({ closeRecord(stoppedRecord) }, "aa-microphone-stop")
+            .apply { isDaemon = true; start() }
+    }
+
+    private fun detachRecord(): AudioRecord? {
+        running.set(false)
+        val stoppedRecord = record
         record = null
         thread = null
+        return stoppedRecord
+    }
+
+    private fun closeRecord(stoppedRecord: AudioRecord?) {
+        if (stoppedRecord == null) return
+        runCatching { stoppedRecord.stop() }
+        runCatching { stoppedRecord.release() }
         DiagLog.i(tag, "microphone closed")
+    }
+
+    private fun awaitCleanup() {
+        val cleanup = cleanupThread ?: return
+        // Cleanup never acquires this object's monitor or touches the current recorder.
+        // Preserve interruption, but do not open another recorder before release finishes.
+        var interrupted = false
+        while (cleanup.isAlive) {
+            try {
+                cleanup.join()
+            } catch (_: InterruptedException) {
+                interrupted = true
+            }
+        }
+        cleanupThread = null
+        if (interrupted) Thread.currentThread().interrupt()
     }
 
     companion object {
