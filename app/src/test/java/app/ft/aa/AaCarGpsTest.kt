@@ -24,6 +24,7 @@ class AaCarGpsTest {
         assertNull(AaCarGps.event(null, 1_500L))
         assertNull(AaCarGps.event(car(55.75, 37.62), 4_100L))
         assertNull(AaCarGps.event(car(91.0, 20.0), 1_500L))
+        assertNull(AaCarGps.event(car(0.0, 0.0), 1_500L))
         assertNull(AaCarGps.event(car(Double.NaN, 20.0), 1_500L))
         assertNull(AaCarGps.event(car(55.0, 180.1), 1_500L))
         assertNull(AaCarGps.event(car(55.0, 20.0).copy(coordinatesUnit = "UNKNOWN"), 1_500L))
