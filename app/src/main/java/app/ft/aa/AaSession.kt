@@ -5,12 +5,15 @@ import app.ft.core.Bytes
 import app.ft.core.CarAudioBus
 import app.ft.core.DiagLog
 import app.ft.core.Prefs
+import app.ft.core.VehicleTelemetry
+import app.ft.core.ProtoReader
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.InputStream
 import java.io.OutputStream
@@ -33,6 +36,8 @@ class AaSession(
     private val assembler = AaFraming.Assembler { crypto.decrypt(it) }
     private val outLock = Any()
     private var job: Job? = null
+    private var carGpsJob: Job? = null
+    @Volatile private var carGpsSubscribed = false
     private val lifecycle = AaSessionLifecycle(
         interrupt = {
             runCatching { input.close() }
@@ -40,6 +45,8 @@ class AaSession(
             job?.cancel()
         },
         cleanup = { reason ->
+            carGpsSubscribed = false
+            carGpsJob?.cancel(); carGpsJob = null
             microphoneInput.close()
             runCatching { mic.stop() }
             if (micWanted) {
@@ -211,6 +218,10 @@ class AaSession(
             }
             AaProtocol.CHANNEL_CLOSE_NOTIFICATION -> {
                 openChannels -= channel
+                if (channel == AaProtocol.CH_SENSOR) {
+                    carGpsSubscribed = false
+                    carGpsJob?.cancel(); carGpsJob = null
+                }
                 if (channel == AaProtocol.CH_NAVIGATION) synchronized(navigation) {
                     AaHeadUnitService.onNavigation?.invoke(navigation.reset())
                 }
@@ -294,12 +305,53 @@ class AaSession(
                 when (type) {
                     AaProtocol.SENSOR_DRIVING_STATUS -> sendEnc(AaProtocol.CH_SENSOR, AaProtocol.SENSOR_EVENT_INDICATION, AaMessages.sensorDrivingStatus(0))
                     AaProtocol.SENSOR_NIGHT_MODE -> sendEnc(AaProtocol.CH_SENSOR, AaProtocol.SENSOR_EVENT_INDICATION, AaMessages.sensorNightMode(false))
+                    AaProtocol.SENSOR_LOCATION -> startCarGps(ProtoReader(body).long(2, 1_000L))
                     else -> Unit
                 }
                 DiagLog.i(tag, "sensor start type=$type")
             }
             else -> DiagLog.d(tag, "sensor msg 0x${Integer.toHexString(id)}")
         }
+    }
+
+    /**
+     * Feed Android Auto only new, still-current ICCOA fixes. If the source disappears,
+     * send a transient SensorError so the phone can revert to its local GNSS.
+     */
+    private fun startCarGps(requestedMs: Long) {
+        carGpsJob?.cancel()
+        carGpsSubscribed = true
+        val interval = requestedMs.coerceIn(100L, 1_000L)
+        carGpsJob = scope.launch(Dispatchers.IO) {
+            var lastPositionAt = Long.MIN_VALUE
+            var lastSeenAt = System.currentTimeMillis()
+            var unavailable = false
+            var sent = 0L
+            while (isActive && lifecycle.running && carGpsSubscribed) {
+                val now = System.currentTimeMillis()
+                val car = VehicleTelemetry.current.value
+                val packet = AaCarGps.event(car, now)
+                if (packet != null && car != null && car.positionAtMs != lastPositionAt) {
+                    if (unavailable) {
+                        sendEnc(AaProtocol.CH_SENSOR, 0x8004, AaCarGps.sensorError(1))
+                        DiagLog.i(tag, "car GPS to AA: recovered")
+                    }
+                    unavailable = false
+                    lastPositionAt = car.positionAtMs
+                    lastSeenAt = now
+                    sendEnc(AaProtocol.CH_SENSOR, AaProtocol.SENSOR_EVENT_INDICATION, packet)
+                    sent++
+                    if (sent == 1L || sent % 100L == 0L)
+                        DiagLog.i(tag, "car GPS to AA: $sent valid fixes sent; source=ICCOA")
+                } else if (!unavailable && now - lastSeenAt >= 3_500L) {
+                    unavailable = true
+                    sendEnc(AaProtocol.CH_SENSOR, 0x8004, AaCarGps.sensorError(2))
+                    DiagLog.w(tag, "car GPS to AA: stale/unavailable, phone fallback requested")
+                }
+                delay(interval)
+            }
+        }
+        DiagLog.i(tag, "AA subscribed to car GPS; interval=${interval}ms, OEM datum requires physical check")
     }
 
     private fun handleAudioSink(channel: Int, id: Int, body: ByteArray) {
