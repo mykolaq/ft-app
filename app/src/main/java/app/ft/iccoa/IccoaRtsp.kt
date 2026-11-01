@@ -101,7 +101,14 @@ internal class IccoaRtsp(
                     "GET_PARAMETER" -> response(cseq, message.body.takeIf { it.isNotBlank() }?.let { wanted ->
                         parameters().lineSequence().filter { line -> line.isNotBlank() && wanted.contains(line.substringBefore(':')) }.joinToString("\r\n", postfix = "\r\n")
                     })
-                    "SET_PARAMETER" -> { response(cseq); if (message.body.contains("wfd_idr_request")) onKeyframe() }
+                    "SET_PARAMETER" -> {
+                        if (message.body.contains("ovm_control_capability", ignoreCase = true)) {
+                            // OEM OVM control port is not yet independently verified; never fake it.
+                            app.ft.core.DiagLog.w("ICCOA", "OEM OVM requested; no verified local OVM service/port")
+                        }
+                        response(cseq)
+                        if (message.body.contains("wfd_idr_request")) onKeyframe()
+                    }
                     else -> response(cseq, status = "405 Method Not Allowed")
                 }
             }
