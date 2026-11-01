@@ -90,7 +90,7 @@ private fun SpeedChip(mph: Boolean, preview: Boolean, vehicle: VehicleLocation?)
     val speed = carSpeed ?: if (live < 0f && preview) 60f else live
     if (speed < 0f) return
     val shown = if (mph) speed * 0.621371f else speed
-    val source = if (carSpeed != null) vehicle.source else "PHONE"
+    val source = if (carSpeed != null) (vehicle?.source ?: "CAR") else "PHONE"
     Chip(CarIcons.Speed, "${shown.roundToInt()}",
         "${stringResource(if (mph) R.string.widget_mph else R.string.widget_kmh)} · $source")
 }
@@ -120,7 +120,7 @@ private fun CourseChip(vehicle: VehicleLocation?, preview: Boolean) {
         raw != null -> "$raw"
         else -> "—"
     }
-    val detail = if (degrees != null) vehicle.source else "${vehicle?.source ?: "CAR"} · raw"
+    val detail = if (degrees != null) (vehicle?.source ?: "CAR") else "${vehicle?.source ?: "CAR"} · raw"
     Chip(CarIcons.Rotate, label, detail)
 }
 
