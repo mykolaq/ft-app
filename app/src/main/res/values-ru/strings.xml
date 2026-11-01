@@ -335,6 +335,8 @@
     <string name="widget_weather">Погода</string>
     <string name="widget_battery">Батарея телефона</string>
     <string name="widget_speed">Скорость</string>
+    <string name="widget_coordinates">Координаты</string>
+    <string name="widget_course">Курс (компас)</string>
     <string name="widget_calendar">Следующее событие</string>
     <string name="widget_no_event">Нет событий</string>
     <string name="widget_temperature">Температура</string>
