@@ -41,6 +41,28 @@ class AaCarGpsTest {
         assertTrue(AaProtocol.SENSOR_DRIVING_STATUS in types)
     }
 
+    @Test fun gateRequiresThreeDistinctConsistentFixes() {
+        val gate = AaGpsGate()
+        assertNull(gate.accept(car(55.7558, 37.6172, 1000), 1000))
+        assertNull(gate.accept(car(55.75581, 37.61721, 1100), 1100))
+        assertNotNull(gate.accept(car(55.75582, 37.61722, 1200), 1200))
+        assertNull(gate.accept(car(55.75582, 37.61722, 1200), 1300))
+        assertNotNull(gate.accept(car(55.75583, 37.61723, 1400), 1400))
+    }
+
+    @Test fun gateRejectsTeleportAndReacquires() {
+        val gate = AaGpsGate()
+        assertNull(gate.accept(car(55.75580, 37.61720, 1000), 1000))
+        assertNull(gate.accept(car(55.75581, 37.61721, 1100), 1100))
+        assertNotNull(gate.accept(car(55.75582, 37.61722, 1200), 1200))
+        // A 20 km teleport in 100 ms is impossible for the car.
+        assertNull(gate.accept(car(55.9300, 37.6173, 1300), 1300))
+        assertNull(gate.accept(car(55.93001, 37.61731, 1400), 1400))
+        assertNotNull(gate.accept(car(55.93002, 37.61732, 1500), 1500))
+        assertNull(gate.accept(null, 5_000))
+        assertNull(gate.accept(car(55.93003, 37.61733, 5_100), 5_100))
+    }
+
     @Test fun gpsSensorErrorMatchesAndroidAutoWireSchema() {
         val p = ProtoReader(AaCarGps.sensorError(2))
         assertEquals(1, p.int(1))
