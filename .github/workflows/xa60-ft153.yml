@@ -42,7 +42,7 @@ jobs:
           grep -Fq '.int32(5, 2)' app/src/main/java/app/ft/iccoa/IccoaAudioPlayerState.kt
           grep -Fq 'preserveAspect' app/src/main/java/app/ft/iccoa/IccoaVideoPlan.kt
           grep -Fq 'versionCode = 161' app/build.gradle.kts
-          grep -Fq 'viewport.map(x, mappedY, app.prefs.aaWidth, app.prefs.aaHeight)' app/src/main/java/app/ft/iccoa/IccoaProjection.kt
+          grep -Fq 'viewport.map(mappedX, mappedY, app.prefs.aaWidth, app.prefs.aaHeight)' app/src/main/java/app/ft/iccoa/IccoaProjection.kt
           grep -Fq 'signingConfigs.getByName("release")' app/build.gradle.kts
           grep -Fq 'applicationId = "app.ft.xa60"' app/build.gradle.kts
           echo "FT_SOURCE_SHA=$GITHUB_SHA"
