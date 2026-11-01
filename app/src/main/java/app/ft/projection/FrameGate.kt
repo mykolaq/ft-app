@@ -19,6 +19,7 @@ import java.nio.ByteOrder
 import java.nio.FloatBuffer
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 class FrameGate(
     private val inWidth: Int,
@@ -26,9 +27,11 @@ class FrameGate(
     private val width: Int,
     private val height: Int,
     private val output: Surface,
-    private val preserveAspect: Boolean = false
+    private val preserveAspect: Boolean = false,
+    private val onFailure: ((Throwable) -> Unit)? = null
 ) {
     private val tag = "Gate"
+    private val failed = AtomicBoolean(false)
     private var thread: HandlerThread? = null
     @Volatile private var handler: Handler? = null
     private var display: EGLDisplay = EGL14.EGL_NO_DISPLAY
@@ -216,9 +219,12 @@ class FrameGate(
             GLES20.glUniformMatrix4fv(transform, 1, false, matrix, 0)
             GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
             EGLExt.eglPresentationTimeANDROID(display, surface, now)
-            EGL14.eglSwapBuffers(display, surface)
+            check(EGL14.eglSwapBuffers(display, surface)) { "eglSwapBuffers error=${EGL14.eglGetError()}" }
         } catch (t: Throwable) {
-            DiagLog.e(tag, "could not pass a frame on", t)
+            if (handler != null && failed.compareAndSet(false, true)) {
+                DiagLog.e(tag, "FRAME_GATE_FATAL stage=draw", t)
+                onFailure?.invoke(t)
+            }
         }
         if (fresh) newFrames++ else repeats++
         fresh = false
