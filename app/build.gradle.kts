@@ -19,8 +19,8 @@ android {
         applicationId = "app.ft.xa60"
         minSdk = 29
         targetSdk = 36
-        versionCode = 162
-        versionName = "3.9.48-xa60-unified-car-gps"
+        versionCode = 163
+        versionName = "3.9.49-xa60-android-auto-car-gps"
     }
 
     signingConfigs {
