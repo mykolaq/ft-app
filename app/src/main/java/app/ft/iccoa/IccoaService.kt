@@ -200,7 +200,7 @@ class IccoaService : Service() {
             main.postDelayed(requestConfig, 3_000)
         }
         _state.update { it.copy(connecting = false, connected = true, pinRequired = false,
-            status = "Connected · ${plan.streamWidth}×${plan.streamHeight} · ${plan.fps} fps") }
+            status = "ICCOA linked · awaiting H.264 video · ${plan.streamWidth}×${plan.streamHeight} · ${plan.fps} fps") }
     }
 
     /** Reference 7.62 phone state: no experimental call-state field is advertised. */
