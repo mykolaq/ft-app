@@ -28,6 +28,7 @@ import app.ft.projection.CarControls
 import app.ft.projection.CarDisplay
 import app.ft.projection.CarTouch
 import app.ft.projection.CarTouchZones
+import app.ft.projection.CarTouchCalibration
 import app.ft.projection.MirrorSink
 import app.ft.projection.PhoneMirror
 import app.ft.projection.VideoPlan
@@ -144,9 +145,15 @@ class IccoaProjection(
     fun touch(action: Int, x: Int, y: Int) = touch(CarTouch(action, x, y))
     fun touch(raw: CarTouch) = onMain {
         if (!active) return@onMain
-        val (x, y) = display.toContent(raw.x, raw.y)
+        val (initialX, y) = display.toContent(raw.x, raw.y)
         val second = if (raw.x2 >= 0 && raw.y2 >= 0) display.toContent(raw.x2, raw.y2) else -1 to -1
-        val t = raw.copy(x = x, y = y, x2 = second.first, y2 = second.second)
+        // FT owns its UI hit testing. AA and phone mirror have independent touch mapping.
+        val isFtUi = !state.value.aaOverlay && !state.value.mirroring
+        if (isFtUi && CarTouchCalibration.consume(context, raw.action, initialX, y)) return@onMain
+        val x = if (isFtUi) CarTouchCalibration.correct(context, initialX, display.width, display.height) else initialX
+        val x2 = if (isFtUi && second.first >= 0)
+            CarTouchCalibration.correct(context, second.first, display.width, display.height) else second.first
+        val t = raw.copy(x = x, y = y, x2 = x2, y2 = second.second)
         if (t.action == CarTouch.DOWN) touchFt = CarTouchZones.hit(x, y)
         if (touchFt) {
             if (t.action == CarTouch.DOWN) DiagLog.i("ICCOA", "touch route=FT content=$x,$y")
@@ -186,6 +193,10 @@ class IccoaProjection(
 
     fun key(code: Int) = onMain {
         if (!active) return@onMain
+        if (CarTouchCalibration.state.value.step != 0 && (code == 3 || code == 4)) {
+            CarTouchCalibration.cancel()
+            return@onMain
+        }
         if (state.value.aaOverlay) {
             AaHeadUnitService.current?.sendKey(code)
         } else when (code) {
