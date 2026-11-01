@@ -30,6 +30,17 @@ class AaCarGpsTest {
         assertNull(AaCarGps.event(car(55.0, 20.0).copy(source = "BAIDU"), 1_500L))
     }
 
+    @Test fun serviceDiscoveryAdvertisesCarLocationWithOtherSensors() {
+        val response = AaMessages.serviceDiscoveryResponse(
+            1280, 720, 30, 160, true, "RAV4", true)
+        val config = ProtoReader(response).messages(1)
+            .first { it.int(1) == AaProtocol.CH_SENSOR }.message(2)!!
+        val types = config.messages(1).map { it.int(1) }.toSet()
+        assertTrue(AaProtocol.SENSOR_LOCATION in types)
+        assertTrue(AaProtocol.SENSOR_NIGHT_MODE in types)
+        assertTrue(AaProtocol.SENSOR_DRIVING_STATUS in types)
+    }
+
     @Test fun gpsSensorErrorMatchesAndroidAutoWireSchema() {
         val p = ProtoReader(AaCarGps.sensorError(2))
         assertEquals(1, p.int(1))
