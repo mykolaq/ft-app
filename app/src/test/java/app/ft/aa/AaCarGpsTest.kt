@@ -33,7 +33,7 @@ class AaCarGpsTest {
 
     @Test fun serviceDiscoveryAdvertisesCarLocationWithOtherSensors() {
         val response = AaMessages.serviceDiscoveryResponse(
-            1280, 720, 30, 160, true, "RAV4", true)
+            1280, 720, 30, 160, true, "RAV4", true, advertiseCarLocation = true)
         val config = ProtoReader(response).messages(1)
             .first { it.int(1) == AaProtocol.CH_SENSOR }.message(2)!!
         val types = config.messages(1).map { it.int(1) }.toSet()
@@ -62,6 +62,15 @@ class AaCarGpsTest {
         assertNotNull(gate.accept(car(55.93002, 37.61732, 1500), 1500))
         assertNull(gate.accept(null, 5_000))
         assertNull(gate.accept(car(55.93003, 37.61733, 5_100), 5_100))
+    }
+
+    @Test fun baiduModeMustNotAdvertiseUnusableGps() {
+        val response = AaMessages.serviceDiscoveryResponse(1280, 720, 30, 160, true, "RAV4", true)
+        val config = ProtoReader(response).messages(1)
+            .first { it.int(1) == AaProtocol.CH_SENSOR }.message(2)!!
+        val types = config.messages(1).map { it.int(1) }.toSet()
+        assertFalse(AaProtocol.SENSOR_LOCATION in types)
+        assertTrue(AaProtocol.SENSOR_DRIVING_STATUS in types)
     }
 
     @Test fun gpsSensorErrorMatchesAndroidAutoWireSchema() {
