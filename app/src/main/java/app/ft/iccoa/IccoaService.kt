@@ -65,8 +65,18 @@ class IccoaService : Service() {
     private val audioStateRetry = Runnable { flushAudioState() }
     private var gpsFrameCount = 0L
     private var gpsFixCount = 0L
+    private var gearSpeedFrames = 0L
+    private var gearSpeedValid = 0L
     private var lastCarGps: IccoaGpsFix? = null
     private fun onSensorMessage(method: Int, body: ByteArray) {
+        if (method == IccoaGearWire.SENSOR_METHOD) {
+            gearSpeedFrames++
+            if (IccoaGearWire.accept(body)) gearSpeedValid++
+            if (gearSpeedFrames <= 3 || gearSpeedFrames and (gearSpeedFrames - 1) == 0L) {
+                DiagLog.i("ICCOA", "SENSOR GearInfo count=$gearSpeedFrames valid=$gearSpeedValid payloadBytes=${body.size} unit=unconfirmed")
+            }
+            return
+        }
         if (method != IccoaGpsWire.GPS_METHOD) return
         gpsFrameCount++
         val fix = IccoaGpsWire.decode(body)
