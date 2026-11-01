@@ -313,12 +313,9 @@ class CarDisplay(private val context: Context) {
         virtualDisplay = null
         // Presentation lifecycle and display release must stay ordered on Main.
         // Holding the same monitor during show prevents stop from losing its owner.
-        if (p != null || vd != null) {
-            val release = {
-                runCatching { p?.destroy() }
-                runCatching { vd?.release() }
-            }
-            if (Looper.myLooper() == Looper.getMainLooper()) release() else main.post { release() }
+        if (p != null || vd != null) main.post {
+            runCatching { p?.destroy() }
+            runCatching { vd?.release() }
         }
         _active.value = false
         runCatching { gate?.stop() }
