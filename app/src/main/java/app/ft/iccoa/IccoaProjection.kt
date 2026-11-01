@@ -168,14 +168,14 @@ class IccoaProjection(
         if (isFtUi && CarTouchCalibration.consume(context, raw.action, initialX, y)) return@onMain
         // Apply the stored HU X/Y calibration before routing FT, mirror and AA touch.
         val applyCalibration = true
-        val (x, mappedY) = if (applyCalibration)
+        val (mappedX, mappedY) = if (applyCalibration)
             CarTouchCalibration.correct(context, initialX, y, display.width, display.height) else initialX to y
-        val (x2, y2) = if (applyCalibration && second.first >= 0 && second.second >= 0)
+        val (mappedX2, mappedY2) = if (applyCalibration && second.first >= 0 && second.second >= 0)
             CarTouchCalibration.correct(context, second.first, second.second, display.width, display.height) else second
-        val t = raw.copy(x = x, y = mappedY, x2 = x2, y2 = y2)
-        if (t.action == CarTouch.DOWN) touchFt = CarTouchZones.hit(x, mappedY)
+        val t = raw.copy(x = mappedX, y = mappedY, x2 = mappedX2, y2 = mappedY2)
+        if (t.action == CarTouch.DOWN) touchFt = CarTouchZones.hit(mappedX, mappedY)
         if (touchFt) {
-            if (t.action == CarTouch.DOWN) DiagLog.i("ICCOA", "touch route=FT content=$x,$y")
+            if (t.action == CarTouch.DOWN) DiagLog.i("ICCOA", "touch route=FT content=$mappedX,$mappedY")
             display.dispatchTouch(t)
             return@onMain
         }
@@ -184,14 +184,14 @@ class IccoaProjection(
             state.value.aaOverlay && aa != null && aa.phase.value >= AaSession.Phase.DISCOVERED -> {
                 if (t.action !in 0..2) return@onMain
                 val viewport = AaTouchViewport.bounds ?: return@onMain
-                if (t.action == CarTouch.DOWN) touchBeside = !viewport.contains(x, mappedY)
+                if (t.action == CarTouch.DOWN) touchBeside = !viewport.contains(mappedX, mappedY)
                 if (touchBeside) {
-                    if (t.action == CarTouch.DOWN) DiagLog.i("ICCOA", "touch beside AA content=$x,$mappedY viewport=$viewport")
+                    if (t.action == CarTouch.DOWN) DiagLog.i("ICCOA", "touch beside AA content=$mappedX,$mappedY viewport=$viewport")
                     return@onMain
                 }
-                val point = viewport.map(x, mappedY, app.prefs.aaWidth, app.prefs.aaHeight)
+                val point = viewport.map(mappedX, mappedY, app.prefs.aaWidth, app.prefs.aaHeight)
                 if (t.action == CarTouch.DOWN) DiagLog.i("ICCOA",
-                    "touch route=AA content=$x,$mappedY viewport=$viewport target=${app.prefs.aaWidth}x${app.prefs.aaHeight} mapped=${point.first},${point.second}")
+                    "touch route=AA content=$mappedX,$mappedY viewport=$viewport target=${app.prefs.aaWidth}x${app.prefs.aaHeight} mapped=${point.first},${point.second}")
                 aa.sendTouch(point.first, point.second, t.action)
             }
             state.value.mirroring -> {
@@ -201,10 +201,10 @@ class IccoaProjection(
                     display.width, display.height, frame.width, frame.height,
                     mirror.width, mirror.height
                 )
-                val mapped = viewport.map(x, mappedY, clipToBounds = t.action != CarTouch.DOWN)
+                val mapped = viewport.map(mappedX, mappedY, clipToBounds = t.action != CarTouch.DOWN)
                 if (t.action == CarTouch.DOWN) {
                     touchBeside = mapped == null
-                    DiagLog.i("Mirror", "touch DOWN car=$x,$mappedY phone=${mapped?.first},${mapped?.second} " +
+                    DiagLog.i("Mirror", "touch DOWN car=$mappedX,$mappedY phone=${mapped?.first},${mapped?.second} " +
                         "source=${mirror.width}x${mirror.height} surface=${frame.width}x${frame.height}")
                 }
                 if (!touchBeside && mapped != null) FTTouchService.instance?.inject(t.action, mapped.first, mapped.second)
