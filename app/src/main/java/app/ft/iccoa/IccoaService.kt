@@ -119,6 +119,7 @@ class IccoaService : Service() {
                 }
             }
             DISCONNECT -> { endConnection(); _state.update { it.copy(status = "Disconnected") } }
+            CALIBRATE_TOUCH -> if (_state.value.connected) projection?.startTouchCalibration()
             INSPECT -> if (!_state.value.connecting && !_state.value.connected) intent.getStringExtra("address")?.let { discovery?.inspect(it) }
             SCAN -> { endConnection(); _state.update { it.copy(status = "") }; discovery?.start() }
             else -> if (!wasRunning) discovery?.start()
@@ -319,6 +320,7 @@ class IccoaService : Service() {
         private const val CONNECT = "app.ft.iccoa.CONNECT"
         private const val PIN = "app.ft.iccoa.PIN"
         private const val DISCONNECT = "app.ft.iccoa.DISCONNECT"
+        private const val CALIBRATE_TOUCH = "app.ft.iccoa.CALIBRATE_TOUCH"
         private val _state = MutableStateFlow(IccoaState())
         val state: StateFlow<IccoaState> = _state
         private var instance: IccoaService? = null
@@ -328,6 +330,7 @@ class IccoaService : Service() {
         fun connect(context: Context, address: String) = send(context, CONNECT, address = address)
         fun submitPin(context: Context, pin: String) = send(context, PIN, pin = pin)
         fun disconnect(context: Context) = send(context, DISCONNECT)
+        fun calibrateTouch(context: Context) = send(context, CALIBRATE_TOUCH)
         fun stop(context: Context) { if (instance != null) send(context, STOP) }
         private fun send(context: Context, action: String, address: String? = null, pin: String? = null) {
             val intent = Intent(context, IccoaService::class.java).setAction(action)
