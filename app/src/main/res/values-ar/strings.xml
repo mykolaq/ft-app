@@ -335,6 +335,8 @@
     <string name="widget_weather">الطقس</string>
     <string name="widget_battery">بطارية الهاتف</string>
     <string name="widget_speed">السرعة</string>
+    <string name="widget_coordinates">الإحداثيات</string>
+    <string name="widget_course">الاتجاه</string>
     <string name="widget_calendar">الموعد القادم</string>
     <string name="widget_no_event">لا مواعيد قادمة</string>
     <string name="widget_temperature">درجة الحرارة</string>
