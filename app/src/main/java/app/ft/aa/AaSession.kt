@@ -5,6 +5,7 @@ import app.ft.core.Bytes
 import app.ft.core.CarAudioBus
 import app.ft.core.DiagLog
 import app.ft.core.Prefs
+import app.ft.core.CarProtocol
 import app.ft.core.VehicleTelemetry
 import app.ft.core.ProtoReader
 import kotlinx.coroutines.CoroutineScope
@@ -188,7 +189,8 @@ class AaSession(
                 DiagLog.i(tag, "video settings ${prefs.aaWidth}x${prefs.aaHeight}@${prefs.aaFps} fps")
                 sendEnc(
                     AaProtocol.CH_CONTROL, AaProtocol.SERVICE_DISCOVERY_RESPONSE,
-                    AaMessages.serviceDiscoveryResponse(prefs.aaWidth, prefs.aaHeight, prefs.aaFps, prefs.aaDensity, true, prefs.carName, prefs.aaControlsLeft)
+                    AaMessages.serviceDiscoveryResponse(prefs.aaWidth, prefs.aaHeight, prefs.aaFps, prefs.aaDensity,
+                        true, prefs.carName, prefs.aaControlsLeft, prefs.carProtocol == CarProtocol.ICCOA)
                 )
                 _phase.value = Phase.DISCOVERED
             }
@@ -305,7 +307,12 @@ class AaSession(
                 when (type) {
                     AaProtocol.SENSOR_DRIVING_STATUS -> sendEnc(AaProtocol.CH_SENSOR, AaProtocol.SENSOR_EVENT_INDICATION, AaMessages.sensorDrivingStatus(0))
                     AaProtocol.SENSOR_NIGHT_MODE -> sendEnc(AaProtocol.CH_SENSOR, AaProtocol.SENSOR_EVENT_INDICATION, AaMessages.sensorNightMode(false))
-                    AaProtocol.SENSOR_LOCATION -> startCarGps(ProtoReader(body).long(2, 1_000L))
+                    AaProtocol.SENSOR_LOCATION -> {
+                        if (prefs.carProtocol == CarProtocol.ICCOA)
+                            startCarGps(ProtoReader(body).long(2, 1_000L))
+                        else sendEnc(AaProtocol.CH_SENSOR, AaProtocol.SENSOR_ERROR,
+                            AaCarGps.sensorError(3))
+                    }
                     else -> Unit
                 }
                 DiagLog.i(tag, "sensor start type=$type")
