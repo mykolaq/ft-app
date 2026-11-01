@@ -344,6 +344,8 @@
     <string name="widget_weather">Weather</string>
     <string name="widget_battery">Phone battery</string>
     <string name="widget_speed">Speed</string>
+    <string name="widget_coordinates">Coordinates</string>
+    <string name="widget_course">Course</string>
     <string name="widget_calendar">Next event</string>
     <string name="widget_no_event">Nothing coming up</string>
     <string name="widget_temperature">Temperature</string>
