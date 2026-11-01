@@ -160,8 +160,11 @@ class IccoaProjection(
         // FT owns its UI hit testing. AA and phone mirror have independent touch mapping.
         val isFtUi = !state.value.aaOverlay && !state.value.mirroring
         if (isFtUi && CarTouchCalibration.consume(context, raw.action, initialX, y)) return@onMain
-        val x = if (isFtUi) CarTouchCalibration.correct(context, initialX, display.width, display.height) else initialX
-        val x2 = if (isFtUi && second.first >= 0)
+        // Toyota's UIBC X geometry also affects phone mirroring. AA owns a separate
+        // viewport/protocol: keep it uncalibrated until physically validated.
+        val applyCalibration = !state.value.aaOverlay
+        val x = if (applyCalibration) CarTouchCalibration.correct(context, initialX, display.width, display.height) else initialX
+        val x2 = if (applyCalibration && second.first >= 0)
             CarTouchCalibration.correct(context, second.first, display.width, display.height) else second.first
         val t = raw.copy(x = x, y = y, x2 = x2, y2 = second.second)
         if (t.action == CarTouch.DOWN) touchFt = CarTouchZones.hit(x, y)
