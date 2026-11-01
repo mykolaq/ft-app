@@ -48,7 +48,8 @@ class IccoaSession(
     private val onPinRequired: () -> Unit,
     private val onReady: (Network, String) -> Unit,
     private val onMessage: (Int, Int, ByteArray) -> Unit,
-    private val onClosed: (String) -> Unit
+    private val onClosed: (String) -> Unit,
+    private val onControlReady: () -> Unit = {}
 ) {
     private val main = Handler(Looper.getMainLooper())
     private val connectivity = context.getSystemService(ConnectivityManager::class.java)
@@ -460,6 +461,7 @@ class IccoaSession(
                         if (port == IccoaLaneServer.AUDIO_PORT) attempt.audio = socket
                     }
                 }
+                if (port == IccoaLaneServer.CONTROL_PORT && active(attempt)) onControlReady()
             },
             onDisconnected = { socket ->
                 synchronized(attempt) {
