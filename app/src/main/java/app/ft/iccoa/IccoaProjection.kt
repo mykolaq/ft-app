@@ -29,6 +29,7 @@ import app.ft.projection.CarDisplay
 import app.ft.projection.CarTouch
 import app.ft.projection.CarTouchZones
 import app.ft.projection.CarTouchCalibration
+import app.ft.projection.CarTouchCalibration
 import app.ft.projection.MirrorSink
 import app.ft.projection.PhoneMirror
 import app.ft.projection.VideoPlan
@@ -142,6 +143,16 @@ class IccoaProjection(
     }
 
     fun requestKeyFrame() = onMain { display.requestKeyframe() }
+
+    /** Phone-side button: never require the misaligned HU touch to start calibration. */
+    fun startTouchCalibration() = onMain {
+        if (!active || state.value.aaOverlay || state.value.mirroring) {
+            DiagLog.w("ICCOA", "FT touch calibration needs active FT launcher/browser projection")
+            return@onMain
+        }
+        CarTouchCalibration.begin(display.width, display.height)
+        DiagLog.i("ICCOA", "FT touch calibration requested from phone display=${display.width}x${display.height}")
+    }
     fun touch(action: Int, x: Int, y: Int) = touch(CarTouch(action, x, y))
     fun touch(raw: CarTouch) = onMain {
         if (!active) return@onMain
