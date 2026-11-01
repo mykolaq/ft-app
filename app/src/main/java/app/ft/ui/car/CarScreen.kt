@@ -351,18 +351,19 @@ private fun CarRoot(style: CarStyle) {
                     if (state.notice != 0) Text(stringResource(state.notice), style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp))
                 }
             }
-            if (!state.aaOverlay && !state.mirroring && touchCal.step in 1..2) {
+            if (!state.aaOverlay && !state.mirroring && touchCal.step in 1..4) {
                 Box(Modifier.fillMaxSize().background(Color(0xFF0B1220))) {
-                    val targetX = if (touchCal.step == 1) .20f else .80f
+                    val targetX = if (touchCal.step == 1 || touchCal.step == 3) .15f else .85f
+                    val targetY = if (touchCal.step <= 2) .15f else .85f
                     Canvas(Modifier.fillMaxSize()) {
                         drawCircle(
                             color = Color(0xFF53E5BB),
                             radius = 22.dp.toPx(),
-                            center = Offset(size.width * targetX, size.height * .50f)
+                            center = Offset(size.width * targetX, size.height * targetY)
                         )
                     }
                     Text(
-                        "Касание ${touchCal.step}/2: нажмите точно в центр зелёного круга",
+                        "Касание ${touchCal.step}/4: нажмите точно в центр зелёного круга",
                         color = Color.White,
                         style = MaterialTheme.typography.headlineSmall,
                         modifier = Modifier.align(Alignment.TopCenter).padding(top = 36.dp)
