@@ -19,8 +19,8 @@ import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
 /** Normal (PIN) ICCOA SignIn. Keys and PIN are scoped to one connection. */
-class IccoaAuth(private val pin: String, private val clientId: String, private val model: String) {
-    private val identity = newKeyPair()
+class IccoaAuth(private val pin: String, private val clientId: String, private val model: String,
+    private val identity: KeyPair = newKeyPair()) {
     private val agreement = newKeyPair()
     private val nonce = ByteArray(32).also(SecureRandom()::nextBytes)
 
