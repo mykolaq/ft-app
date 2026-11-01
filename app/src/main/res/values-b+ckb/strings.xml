@@ -335,6 +335,8 @@
     <string name="widget_weather">کەشوهەوا</string>
     <string name="widget_battery">باتریی مۆبایل</string>
     <string name="widget_speed">خێرایی</string>
+    <string name="widget_coordinates">شوێنەوار</string>
+    <string name="widget_course">ئاڕاستە</string>
     <string name="widget_calendar">چالاکیی داهاتوو</string>
     <string name="widget_no_event">هیچ شتێکی داهاتوو نییە</string>
     <string name="widget_temperature">پلەی گەرمی</string>
