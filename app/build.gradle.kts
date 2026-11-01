@@ -42,6 +42,11 @@ android {
             // Fail closed if that key was not supplied.
             signingConfig = signingConfigs.getByName("release")
         }
+        create("unsignedTransit") {
+            initWith(getByName("release"))
+            signingConfig = null
+            matchingFallbacks += listOf("release")
+        }
     }
 
     buildFeatures {
