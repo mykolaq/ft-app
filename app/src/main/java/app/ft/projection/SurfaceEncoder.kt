@@ -98,7 +98,7 @@ class SurfaceEncoder(
         val fits = all.filter { info ->
             runCatching {
                 info.getCapabilitiesForType(MediaFormat.MIMETYPE_VIDEO_AVC).videoCapabilities
-                    .isSizeAndRateSupported(width, height, fps.toDouble())
+                    .areSizeAndRateSupported(width, height, fps.toDouble())
             }.getOrDefault(false)
         }
         if (fits.isEmpty()) DiagLog.w(tag, "no encoder advertises ${width}x${height}@${fps}")
