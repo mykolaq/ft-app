@@ -5,6 +5,7 @@ import android.security.keystore.KeyProperties
 import java.security.KeyPair
 import java.security.KeyPairGenerator
 import java.security.KeyStore
+import java.security.PrivateKey
 import java.security.spec.ECGenParameterSpec
 
 /**
@@ -18,7 +19,7 @@ internal object IccoaClientIdentity {
     @Synchronized fun load(): KeyPair {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         if (store.containsAlias(ALIAS)) {
-            val privateKey = store.getKey(ALIAS, null)
+            val privateKey = store.getKey(ALIAS, null) as? PrivateKey
                 ?: error("Stored ICCOA identity is inaccessible")
             val publicKey = store.getCertificate(ALIAS)?.publicKey
                 ?: error("Stored ICCOA identity certificate is inaccessible")
