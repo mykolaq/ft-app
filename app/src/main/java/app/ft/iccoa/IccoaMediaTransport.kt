@@ -199,7 +199,12 @@ internal class IccoaMediaTransport(
         val json = IccoaInputJson { event ->
             if (event.optInt("type") == 1) {
                 val video = videoConfig ?: return@IccoaInputJson
-                val touch = IccoaInputEvent.touch(event, video) ?: return@IccoaInputJson
+                val nativeTouch = IccoaInputEvent.touch(event, video) ?: return@IccoaInputJson
+                val plan = IccoaVideoPlan.from(video)
+                fun sx(x: Int) = if (x < 0) -1 else (x.toLong() * plan.streamWidth / video.width).toInt()
+                fun sy(y: Int) = if (y < 0) -1 else (y.toLong() * plan.streamHeight / video.height).toInt()
+                val touch = nativeTouch.copy(x = sx(nativeTouch.x), y = sy(nativeTouch.y),
+                    x2 = sx(nativeTouch.x2), y2 = sy(nativeTouch.y2))
                 if (touch.action != CarTouch.MOVE) DiagLog.i("ICCOA",
                     "UIBC touch action=${touch.action} x=${touch.x} y=${touch.y} dst=${video.width}x${video.height}" +
                         " source=${event.optInt("width")}x${event.optInt("height")} raw=${event.optDouble("x0")},${event.optDouble("y0")}")
