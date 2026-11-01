@@ -33,3 +33,60 @@ internal object AaCarGps {
     fun sensorError(status: Int): ByteArray =
         ProtoWriter().enum(1, LOCATION).enum(2, status).toByteArray()
 }
+
+
+/**
+ * Suppress isolated GNSS jumps (including RF interference) before feeding maps.
+ * Require three consecutive consistent distinct car fixes to acquire/reacquire.
+ * Output and source selection remain independent of diagnostic 10-second sampling.
+ */
+internal class AaGpsGate {
+    private var previous: VehicleLocation? = null
+    private var lastObservedAt = Long.MIN_VALUE
+    private var consecutive = 0
+
+    fun accept(sample: VehicleLocation?, nowMs: Long): ByteArray? {
+        val encoded = AaCarGps.event(sample, nowMs)
+        if (encoded == null || sample == null) {
+            if (previous != null && nowMs - lastObservedAt > 3_000L) reset()
+            return null
+        }
+        val preceding = previous
+        if (preceding != null && preceding.positionAtMs == sample.positionAtMs) return null
+        if (preceding != null) {
+            val elapsedMs = sample.positionAtMs - preceding.positionAtMs
+            val lat1 = preceding.displayLatitude
+            val lon1 = preceding.displayLongitude
+            val lat2 = sample.displayLatitude
+            val lon2 = sample.displayLongitude
+            if (elapsedMs !in 1L..3_000L || lat1 == null || lon1 == null || lat2 == null || lon2 == null ||
+                unreasonableJump(lat1, lon1, lat2, lon2, elapsedMs)) {
+                previous = sample
+                consecutive = 1
+                lastObservedAt = nowMs
+                return null
+            }
+        }
+        previous = sample
+        lastObservedAt = nowMs
+        consecutive++
+        return encoded.takeIf { consecutive >= 3 }
+    }
+
+    fun reset() {
+        previous = null
+        consecutive = 0
+        lastObservedAt = Long.MIN_VALUE
+    }
+
+    private fun unreasonableJump(lat1: Double, lon1: Double, lat2: Double, lon2: Double, ms: Long): Boolean {
+        val dy = Math.toRadians(lat2 - lat1)
+        val dx = Math.toRadians(lon2 - lon1)
+        val a = kotlin.math.sin(dy / 2) * kotlin.math.sin(dy / 2) +
+            kotlin.math.cos(Math.toRadians(lat1)) * kotlin.math.cos(Math.toRadians(lat2)) *
+            kotlin.math.sin(dx / 2) * kotlin.math.sin(dx / 2)
+        val meters = 2.0 * 6_371_000.0 * kotlin.math.asin(kotlin.math.sqrt(a.coerceIn(0.0, 1.0)))
+        // Allow up to 300 km/h plus 30 m of GNSS jitter between readings.
+        return meters > 30.0 + (ms / 1_000.0) * (300.0 / 3.6)
+    }
+}
