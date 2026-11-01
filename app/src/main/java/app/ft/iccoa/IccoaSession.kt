@@ -388,7 +388,7 @@ class IccoaSession(
             socket.tcpNoDelay = true
             socket.soTimeout = 15_000
             progress("build-request")
-            val auth = IccoaAuth(pin, attempt.clientId, Build.MODEL)
+            val auth = IccoaAuth(pin, attempt.clientId, Build.MODEL, IccoaClientIdentity.load())
             progress("send-request")
             socket.getOutputStream().run { write(IccoaControl.frame(3, 1, 1, auth.request(), 1)); flush() }
             progress("read-response")
