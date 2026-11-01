@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.StateFlow
 data class VehicleLocation(
     val source: String,
     val receivedAtMs: Long,
+    val positionAtMs: Long = receivedAtMs,
     val latitude: Double? = null,
     val longitude: Double? = null,
     val rawLatitude: Long? = null,
@@ -27,6 +28,9 @@ data class VehicleLocation(
     fun fresh(nowMs: Long = System.currentTimeMillis()) =
         nowMs >= receivedAtMs && nowMs - receivedAtMs <= 3_000L
 
+    fun positionFresh(nowMs: Long = System.currentTimeMillis()) =
+        positionAtMs > 0L && nowMs >= positionAtMs && nowMs - positionAtMs <= 3_000L
+
     val displayLatitude: Double? get() = latitude?.takeIf { it.isFinite() && it in -90.0..90.0 }
     val displayLongitude: Double? get() = longitude?.takeIf { it.isFinite() && it in -180.0..180.0 }
 }
@@ -44,9 +48,18 @@ object VehicleTelemetry {
     @Synchronized fun updateBaiduSpeed(rawSpeed: Long, deviceTimestamp: Long? = null) {
         if (rawSpeed < 0L || rawSpeed > 100_000L) return
         val old = _current.value?.takeIf { it.source == "BAIDU" && it.fresh() }
-        _current.value = (old ?: VehicleLocation("BAIDU", System.currentTimeMillis())).copy(
+        _current.value = (old ?: VehicleLocation("BAIDU", System.currentTimeMillis(), positionAtMs = 0L)).copy(
             receivedAtMs = System.currentTimeMillis(), speedRaw = rawSpeed,
             deviceTimestampRaw = deviceTimestamp ?: old?.deviceTimestampRaw
+        )
+    }
+
+    @Synchronized fun updateIccoaSpeed(rawSpeed: Long) {
+        if (rawSpeed < 0L || rawSpeed > 100_000L) return
+        val now = System.currentTimeMillis()
+        val old = _current.value?.takeIf { it.source == "ICCOA" && it.fresh(now) }
+        _current.value = (old ?: VehicleLocation("ICCOA", now, positionAtMs = 0L)).copy(
+            receivedAtMs = now, speedRaw = rawSpeed
         )
     }
 
