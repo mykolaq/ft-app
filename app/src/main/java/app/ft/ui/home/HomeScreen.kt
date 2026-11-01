@@ -209,10 +209,13 @@ fun HomeScreen(pad: PaddingValues, onOpenAccessibility: () -> Unit, onOpenOverla
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Калибровка экрана Toyota", style = MaterialTheme.typography.titleMedium)
                     Text(if (touchCalibration.step > 0)
-                        "На экране автомобиля нажмите точно в центр зелёного круга. Точка ${touchCalibration.step} из 2."
-                        else "Запуск с телефона: на экране автомобиля появятся две контрольные точки.")
+                        "На экране автомобиля нажмите точно в центр зелёного круга. Точка ${touchCalibration.step} из 4."
+                        else "Запуск с телефона: четыре точки откалибруют горизонтальные и вертикальные касания.")
                     FilledTonalButton(onClick = { IccoaService.calibrateTouch() }) {
-                        Text(if (touchCalibration.step > 0) "Начать заново" else "Калибровать касания на ГУ")
+                        Text(if (touchCalibration.step > 0) "Начать заново" else "Калибровать X/Y на ГУ")
+                    }
+                    TextButton(onClick = { IccoaService.resetTouchCalibration() }) {
+                        Text("Сбросить калибровку")
                     }
                 }
             }
