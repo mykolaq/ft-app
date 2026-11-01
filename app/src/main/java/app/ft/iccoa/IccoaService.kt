@@ -24,6 +24,8 @@ import app.ft.aa.AaHeadUnitService
 import app.ft.core.CarProtocol
 import app.ft.core.DiagLog
 import app.ft.core.ProtoWriter
+import app.ft.core.VehicleTelemetry
+import app.ft.core.VehicleLocation
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -71,6 +73,13 @@ class IccoaService : Service() {
         if (fix != null) {
             gpsFixCount++
             lastCarGps = fix
+            VehicleTelemetry.publish(VehicleLocation(
+                source = "ICCOA", receivedAtMs = System.currentTimeMillis(),
+                latitude = fix.latitude, longitude = fix.longitude,
+                speedRaw = fix.speedRaw, headingRaw = fix.headingRaw,
+                satellitesUsed = fix.satellitesUsed, satellitesVisible = fix.satellitesVisible,
+                deviceTimestampRaw = fix.timestampRaw
+            ))
         }
         if (gpsFrameCount <= 3 || gpsFrameCount and (gpsFrameCount - 1) == 0L) {
             DiagLog.i("ICCOA", "SENSOR GPS received=$gpsFrameCount valid=$gpsFixCount " +
@@ -315,6 +324,8 @@ class IccoaService : Service() {
         }
         projection?.stop()
         lastVideoConfig = null
+        lastCarGps = null
+        VehicleTelemetry.clear("ICCOA")
         _state.update { it.copy(pinRequired = false, connecting = false, connected = false) }
     }
 
