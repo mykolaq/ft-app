@@ -39,17 +39,21 @@ data class VehicleLocation(
 object VehicleTelemetry {
     private val _current = MutableStateFlow<VehicleLocation?>(null)
     val current: StateFlow<VehicleLocation?> = _current
-    private var lastLogAtMs = 0L
-    private var lastLogSource = ""
+    private val logSampler = VehicleLogSampler()
 
-    /** One time-correlated sample per second, embedded in FT's normal manual ZIP report. */
+    /**
+     * 10s routine samples, temporary 1Hz bursts after source/fix changes or a telemetry gap.
+     * Does not throttle real-time position delivery.
+     */
     private fun note(sample: VehicleLocation) {
         val now = sample.receivedAtMs
-        if (sample.source == lastLogSource && now - lastLogAtMs < 1_000L) return
-        lastLogAtMs = now
-        lastLogSource = sample.source
+        val hasFix = sample.positionFresh(now) &&
+            ((sample.displayLatitude != null && sample.displayLongitude != null) ||
+             (sample.rawLatitude != null && sample.rawLongitude != null))
+        val decision = logSampler.accept(sample.source, now, hasFix) ?: return
         fun dec(value: Double?) = value?.let { String.format(java.util.Locale.US, "%.7f", it) } ?: "NA"
-        runCatching { DiagLog.i("VehicleGPS", "protocol=${sample.source} timeMs=$now " +
+        runCatching { DiagLog.i("VehicleGPS", "reason=${decision.reason} mode=${if (decision.fast) "EVENT_1HZ" else "NORMAL_10S"} " +
+            "protocol=${sample.source} timeMs=$now " +
             "latitude=${dec(sample.latitude)} longitude=${dec(sample.longitude)} " +
             "rawLat=${sample.rawLatitude ?: "NA"} rawLon=${sample.rawLongitude ?: "NA"} " +
             "speedRaw=${sample.speedRaw ?: "NA"} headingRaw=${sample.headingRaw ?: "NA"} " +
@@ -86,6 +90,10 @@ object VehicleTelemetry {
     }
 
     @Synchronized fun clear(source: String) {
-        if (_current.value?.source == source) _current.value = null
+        if (_current.value?.source == source) {
+            _current.value = null
+            runCatching { DiagLog.i("VehicleGPS", "reason=SOURCE_DISCONNECTED protocol=$source") }
+            logSampler.reset()
+        }
     }
 }
