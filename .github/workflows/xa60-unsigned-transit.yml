@@ -2,7 +2,7 @@ name: XA60 unsigned transit APK for offline owner signing
 
 on:
   push:
-    branches: [openivi/xa60-iccoa-build153]
+    branches: [openivi/xa60-iccoa-build154]
     paths:
       - 'app/**'
       - '.github/workflows/xa60-unsigned-transit.yml'
@@ -53,7 +53,7 @@ jobs:
           apk=$(find app/build/outputs/apk/unsignedTransit -maxdepth 1 -name '*unsigned*.apk' -type f -print -quit)
           test -n "$apk"
           test -s "$apk"
-          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" | grep -m1 "^package: name='app.ft.xa60' versionCode='153'"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" | grep -m1 "^package: name='app.ft.xa60' versionCode='154'"
           if "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" | grep -q '^application-debuggable'; then
             echo "Refusing debuggable APK" >&2
             exit 1
