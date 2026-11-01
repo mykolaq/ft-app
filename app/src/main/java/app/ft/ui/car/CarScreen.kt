@@ -23,6 +23,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -73,6 +74,9 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
@@ -119,6 +123,7 @@ import app.ft.core.Links
 import app.ft.media.CarPlayer
 import app.ft.media.MediaLibrary
 import app.ft.projection.CarTouchZones
+import app.ft.projection.CarTouchCalibration
 import app.ft.projection.MirrorSink
 import app.ft.ui.theme.CarTheme
 import kotlinx.coroutines.delay
@@ -168,6 +173,8 @@ fun CarScreen() {
 private fun CarRoot(style: CarStyle) {
     val state by CarControls.state.collectAsState()
     val aa by AaHeadUnitService.state.collectAsState()
+    val touchCal by CarTouchCalibration.state.collectAsState()
+    var touchArea by remember { mutableStateOf(IntSize.Zero) }
     val alternative by PhoneStyle.modern.collectAsState()
     var view by remember { mutableStateOf(CarView.LAUNCHER) }
     var nowPlaying by remember { mutableStateOf(false) }
@@ -270,7 +277,7 @@ private fun CarRoot(style: CarStyle) {
         LocalCarCard provides style.cardColor,
         LocalPillRow provides pillRowInset(style.corner, PILL_SPACE - 28.dp)
     ) {
-        Box(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize().onSizeChanged { touchArea = it }) {
             CarBackground(style)
             when {
                 state.waitingForShare -> ShareWait(state.mirrorPackage, state.shareForSound)
@@ -344,6 +351,36 @@ private fun CarRoot(style: CarStyle) {
             ) {
                 Surface(shape = RoundedCornerShape(50), color = Color.Black.copy(alpha = 0.82f), contentColor = Color.White) {
                     if (state.notice != 0) Text(stringResource(state.notice), style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp))
+                }
+            }
+            if (!state.aaOverlay && !state.mirroring && view == CarView.LAUNCHER &&
+                touchCal.step == 0 && state.phase == Phase.PROJECTING) {
+                Button(
+                    onClick = { CarTouchCalibration.begin(touchArea.width, touchArea.height) },
+                    modifier = Modifier.align(Alignment.BottomStart).padding(16.dp)
+                ) { Text("Калибровка касаний") }
+            }
+            if (!state.aaOverlay && !state.mirroring && touchCal.step in 1..2) {
+                Box(Modifier.fillMaxSize().background(Color(0xFF0B1220))) {
+                    val targetX = if (touchCal.step == 1) .20f else .80f
+                    Canvas(Modifier.fillMaxSize()) {
+                        drawCircle(
+                            color = Color(0xFF53E5BB),
+                            radius = 22.dp.toPx(),
+                            center = Offset(size.width * targetX, size.height * .50f)
+                        )
+                    }
+                    Text(
+                        "Касание ${touchCal.step}/2: нажмите точно в центр зелёного круга",
+                        color = Color.White,
+                        style = MaterialTheme.typography.headlineSmall,
+                        modifier = Modifier.align(Alignment.TopCenter).padding(top = 36.dp)
+                    )
+                    Text(
+                        "Для отмены нажмите в верхнем левом углу экрана",
+                        color = Color.White,
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 30.dp)
+                    )
                 }
             }
             if ((state.aaOverlay || state.mirroring || view != CarView.LAUNCHER) && !castFullNow && (!state.aaOverlay || style.aaShowReturnButton)) {
