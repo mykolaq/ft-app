@@ -75,8 +75,8 @@ internal object CarTouchCalibration {
             }
             val key = "${c.width}x${c.height}"
             context.getSharedPreferences("ft-iccoa-touch", Context.MODE_PRIVATE).edit()
-                .putFloat("$"+"{key}_gain", model.gain.toFloat())
-                .putFloat("$"+"{key}_offset", model.offsetPx.toFloat())
+                .putFloat("${key}_gain", model.gain.toFloat())
+                .putFloat("${key}_offset", model.offsetPx.toFloat())
                 .apply()
             DiagLog.i("ICCOA", "FT touch calibration saved for $"+"key gain=${model.gain} offset=${model.offsetPx}")
             cancel()
@@ -87,8 +87,8 @@ internal object CarTouchCalibration {
     fun correct(context: Context, x: Int, width: Int, height: Int): Int {
         val prefs = context.getSharedPreferences("ft-iccoa-touch", Context.MODE_PRIVATE)
         val key = "${width}x${height}"
-        val gain = prefs.getFloat("$"+"{key}_gain", 1f).toDouble()
-        val offset = prefs.getFloat("$"+"{key}_offset", 0f).toDouble()
+        val gain = prefs.getFloat("${key}_gain", 1f).toDouble()
+        val offset = prefs.getFloat("${key}_offset", 0f).toDouble()
         if (!gain.isFinite() || gain !in 0.60..1.80 || !offset.isFinite() ||
             kotlin.math.abs(offset) > width * 0.35) return x
         return TouchScale(gain, offset).map(x, width)
