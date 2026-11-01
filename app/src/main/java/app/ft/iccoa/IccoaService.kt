@@ -321,6 +321,12 @@ class IccoaService : Service() {
     private fun control(category: Int, method: Int, body: ByteArray) {
         if (category != 1) return
         when (method) {
+            IccoaPortNegotiation.REQUEST -> {
+                IccoaPortNegotiation.responseFor(body)?.let { response ->
+                    if (session?.sendControl(IccoaPortNegotiation.RESPONSE, response) == true)
+                        DiagLog.i("ICCOA", "OEM SENSOR GetPortRequest answered with bound listener 57239")
+                }
+            }
             4 -> lastVideoConfig?.let(::play)
             5, 41 -> pauseProjection()
             16 -> projection?.key(84) // Same AA voice/search key as the CarLife voice button.
