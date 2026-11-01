@@ -75,7 +75,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -174,7 +173,6 @@ private fun CarRoot(style: CarStyle) {
     val state by CarControls.state.collectAsState()
     val aa by AaHeadUnitService.state.collectAsState()
     val touchCal by CarTouchCalibration.state.collectAsState()
-    var touchArea by remember { mutableStateOf(IntSize.Zero) }
     val alternative by PhoneStyle.modern.collectAsState()
     var view by remember { mutableStateOf(CarView.LAUNCHER) }
     var nowPlaying by remember { mutableStateOf(false) }
@@ -277,7 +275,7 @@ private fun CarRoot(style: CarStyle) {
         LocalCarCard provides style.cardColor,
         LocalPillRow provides pillRowInset(style.corner, PILL_SPACE - 28.dp)
     ) {
-        Box(Modifier.fillMaxSize().onSizeChanged { touchArea = it }) {
+        Box(Modifier.fillMaxSize()) {
             CarBackground(style)
             when {
                 state.waitingForShare -> ShareWait(state.mirrorPackage, state.shareForSound)
@@ -352,13 +350,6 @@ private fun CarRoot(style: CarStyle) {
                 Surface(shape = RoundedCornerShape(50), color = Color.Black.copy(alpha = 0.82f), contentColor = Color.White) {
                     if (state.notice != 0) Text(stringResource(state.notice), style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp))
                 }
-            }
-            if (!state.aaOverlay && !state.mirroring && view == CarView.LAUNCHER &&
-                touchCal.step == 0 && state.phase == Phase.PROJECTING) {
-                Button(
-                    onClick = { CarTouchCalibration.begin(touchArea.width, touchArea.height) },
-                    modifier = Modifier.align(Alignment.BottomStart).padding(16.dp)
-                ) { Text("Калибровка касаний") }
             }
             if (!state.aaOverlay && !state.mirroring && touchCal.step in 1..2) {
                 Box(Modifier.fillMaxSize().background(Color(0xFF0B1220))) {
