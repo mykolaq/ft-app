@@ -205,9 +205,16 @@ class CarDisplay(private val context: Context) {
             if (first) main.post(flushMove)
             return
         }
-        synchronized(moveLock) { pendingMove = null }
+        val finalMove = synchronized(moveLock) { pendingMove.also { pendingMove = null } }
         main.removeCallbacks(flushMove)
-        main.post { deliver(t) }
+        main.post {
+            // A fast finger release may arrive before the coalesced MOVE runs.
+            // Do not discard that MOVE: sliders and swipes need it before UP.
+            if (t.action == CarTouch.UP || t.action == CarTouch.POINTER_UP) {
+                finalMove?.let { deliver(it) }
+            }
+            deliver(t)
+        }
     }
 
     private fun deliver(t: CarTouch) {
