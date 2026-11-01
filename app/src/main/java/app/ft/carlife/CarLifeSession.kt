@@ -12,6 +12,7 @@ import app.ft.core.DiagLog
 import app.ft.core.Prefs
 import app.ft.core.ProtoReader
 import app.ft.core.ProtoWriter
+import app.ft.core.VehicleTelemetry
 import app.ft.projection.VideoPlan
 import app.ft.projection.VideoPlans
 import app.ft.projection.VideoProfile
@@ -160,6 +161,7 @@ class CarLifeSession(
         feed.close()
         media.forget()
         navigation.reset()
+        VehicleTelemetry.clear("BAIDU")
         aaMusic.close()
         unwatchScreen()
     }
@@ -346,7 +348,8 @@ class CarLifeSession(
     }
 
     private fun handleCmd(c: CarLifeFraming.Cmd) {
-        if (c.serviceId != CarLifeProtocol.CMD_HU_GEAR_INFO && c.serviceId != CarLifeProtocol.CMD_MODULE_CONTROL) {
+        if (c.serviceId !in setOf(CarLifeProtocol.CMD_HU_GEAR_INFO, CarLifeProtocol.CMD_MODULE_CONTROL,
+                CarLifeProtocol.CMD_CAR_GPS, CarLifeProtocol.CMD_CAR_VELOCITY)) {
             DiagLog.rx(tag, CarLifeProtocol.name(c.serviceId), c.payload)
         }
         when (c.serviceId) {
@@ -491,8 +494,15 @@ class CarLifeSession(
             }
             CarLifeProtocol.CMD_VEHICLE_FOREGROUND -> DiagLog.i(tag, "the car shows CarLife")
             CarLifeProtocol.CMD_VEHICLE_BACKGROUND -> DiagLog.i(tag, "the car moved CarLife to the background")
-            CarLifeProtocol.CMD_CAR_VELOCITY,
-            CarLifeProtocol.CMD_CAR_GPS, CarLifeProtocol.CMD_CAR_GYROSCOPE, CarLifeProtocol.CMD_CAR_ACCELERATION,
+            CarLifeProtocol.CMD_CAR_VELOCITY -> {
+                val ok = CarLifeCarSensors.onSpeed(c.payload)
+                DiagLog.d(tag, "BAIDU vehicle speed frame bytes=${c.payload.size} parsed=$ok")
+            }
+            CarLifeProtocol.CMD_CAR_GPS -> {
+                val ok = CarLifeCarSensors.onGps(c.payload)
+                DiagLog.d(tag, "BAIDU vehicle GPS frame bytes=${c.payload.size} parsed=$ok")
+            }
+            CarLifeProtocol.CMD_CAR_GYROSCOPE, CarLifeProtocol.CMD_CAR_ACCELERATION,
             CarLifeProtocol.CMD_CAR_OIL, CarLifeProtocol.CMD_ERROR_CODE, CarLifeProtocol.CMD_BT_HFP_INDICATION,
             CarLifeProtocol.CMD_BT_HFP_CONNECTION, CarLifeProtocol.CMD_BT_HFP_RESPONSE, CarLifeProtocol.CMD_BT_HFP_STATUS_RESPONSE,
             CarLifeProtocol.CMD_BT_START_IDENTIFY_REQ, CarLifeProtocol.CMD_VIDEO_ENCODER_JPEG -> Unit
