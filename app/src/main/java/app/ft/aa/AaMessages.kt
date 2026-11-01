@@ -58,6 +58,7 @@ object AaMessages {
                 2, ProtoWriter()
                     .message(1, ProtoWriter().enum(1, AaProtocol.SENSOR_DRIVING_STATUS))
                     .message(1, ProtoWriter().enum(1, AaProtocol.SENSOR_NIGHT_MODE))
+                    .message(1, ProtoWriter().enum(1, AaProtocol.SENSOR_LOCATION))
             )
         val w = ProtoWriter()
             .message(1, video)
