@@ -221,7 +221,7 @@ class FrameGate(
             EGLExt.eglPresentationTimeANDROID(display, surface, now)
             check(EGL14.eglSwapBuffers(display, surface)) { "eglSwapBuffers error=${EGL14.eglGetError()}" }
         } catch (t: Throwable) {
-            if (handler != null && failed.compareAndSet(false, true)) {
+            if (handler != null && failed?.compareAndSet(false, true) == true) {
                 DiagLog.e(tag, "FRAME_GATE_FATAL stage=draw", t)
                 onFailure?.invoke(t)
             }
