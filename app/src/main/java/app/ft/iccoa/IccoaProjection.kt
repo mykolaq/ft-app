@@ -29,7 +29,6 @@ import app.ft.projection.CarDisplay
 import app.ft.projection.CarTouch
 import app.ft.projection.CarTouchZones
 import app.ft.projection.CarTouchCalibration
-import app.ft.projection.CarTouchCalibration
 import app.ft.projection.MirrorSink
 import app.ft.projection.PhoneMirror
 import app.ft.projection.VideoPlan
