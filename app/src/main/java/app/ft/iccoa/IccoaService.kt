@@ -26,6 +26,7 @@ import app.ft.core.DiagLog
 import app.ft.core.ProtoWriter
 import app.ft.core.VehicleTelemetry
 import app.ft.core.VehicleLocation
+import app.ft.core.NavigationInfo
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -53,6 +54,22 @@ class IccoaService : Service() {
     private var projection: IccoaProjection? = null
     private var microphone: IccoaMicrophone? = null
     private var microphoneHook: ((Boolean) -> Unit)? = null
+    private var navigationHook: ((NavigationInfo) -> Unit)? = null
+    private var latestNavigation = NavigationInfo()
+    private var navigationRetries = 0
+    private val navigationSend = object : Runnable {
+        override fun run() {
+            val connection = session ?: return
+            if (connection.sendControl(IccoaNavigation.CONTROL_METHOD,
+                    IccoaNavigation.encode(latestNavigation))) {
+                navigationRetries = 0
+                DiagLog.i("ICCOA", "OEM navigation status forwarded: active=${latestNavigation.active}")
+            } else if (navigationRetries++ < 8) {
+                main.postDelayed(this, 500)
+            }
+        }
+    }
+
     private val microphoneRetry = object : Runnable {
         override fun run() {
             if (microphone?.flush() == true) main.postDelayed(this, 500)
@@ -209,6 +226,16 @@ class IccoaService : Service() {
                 }
             }
         }
+        val navHook: (NavigationInfo) -> Unit = { info ->
+            main.post {
+                if (generation == token) {
+                    latestNavigation = info
+                    navigationRetries = 0
+                    main.removeCallbacks(navigationSend)
+                    navigationSend.run()
+                }
+            }
+        }
         connection = IccoaSession(this,
             onStatus = { text -> current { _state.update { it.copy(status = text) } } },
             onPinRequired = { current { _state.update { it.copy(pinRequired = true, status = "Enter the six-digit code shown by the car") } } },
@@ -227,7 +254,11 @@ class IccoaService : Service() {
                     transport.start()
                     media = transport
                 }
-                current { _state.update { it.copy(pinRequired = false, status = "Paired. Waiting for the car to start projection…") } }
+                current {
+                    _state.update { it.copy(pinRequired = false, status = "Paired. Waiting for the car to start projection…") }
+                    navigationRetries = 0
+                    navigationSend.run()
+                }
             },
             onMessage = { category, method, body ->
                 if (category == 4) {
@@ -242,7 +273,9 @@ class IccoaService : Service() {
         // Publish only after the captured session has been initialized: AA callbacks
         // arrive on its reader thread and can run as soon as the hook is visible.
         microphoneHook = hook
+        navigationHook = navHook
         AaHeadUnitService.onCarMicWanted = hook
+        AaHeadUnitService.onNavigation = navHook
         runCatching { connection.start(address) }.onFailure { connectionFailed(it.message ?: "Connection failed") }
     }
 
@@ -324,6 +357,11 @@ class IccoaService : Service() {
         main.removeCallbacks(audioStateRetry)
         main.removeCallbacks(requestConfig)
         main.removeCallbacks(microphoneRetry)
+        main.removeCallbacks(navigationSend)
+        if (AaHeadUnitService.onNavigation === navigationHook) AaHeadUnitService.onNavigation = null
+        navigationHook = null
+        latestNavigation = NavigationInfo()
+        navigationRetries = 0
         if (AaHeadUnitService.onCarMicWanted === microphoneHook) AaHeadUnitService.onCarMicWanted = null
         microphoneHook = null
         microphone?.close()
