@@ -18,7 +18,7 @@ internal class IccoaAudioPlayerState {
         val desired = playing!!
         val state = if (!desired) 2 else if (queuedPlaying == null) 0 else 3
         val body = ProtoWriter().int32(1, 16).int32(2, state).int32(3, 48000)
-            .int32(4, 2).string(6, "audio/mp4a-latm").toByteArray()
+            .int32(4, 2).int32(5, 2).string(6, "audio/mp4a-latm").toByteArray()
         if (!send(body)) return null
         queuedPlaying = desired
         return state
