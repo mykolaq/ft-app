@@ -184,14 +184,14 @@ class IccoaProjection(
             state.value.aaOverlay && aa != null && aa.phase.value >= AaSession.Phase.DISCOVERED -> {
                 if (t.action !in 0..2) return@onMain
                 val viewport = AaTouchViewport.bounds ?: return@onMain
-                if (t.action == CarTouch.DOWN) touchBeside = !viewport.contains(x, y)
+                if (t.action == CarTouch.DOWN) touchBeside = !viewport.contains(x, mappedY)
                 if (touchBeside) {
-                    if (t.action == CarTouch.DOWN) DiagLog.i("ICCOA", "touch beside AA content=$x,$y viewport=$viewport")
+                    if (t.action == CarTouch.DOWN) DiagLog.i("ICCOA", "touch beside AA content=$x,$mappedY viewport=$viewport")
                     return@onMain
                 }
                 val point = viewport.map(x, mappedY, app.prefs.aaWidth, app.prefs.aaHeight)
                 if (t.action == CarTouch.DOWN) DiagLog.i("ICCOA",
-                    "touch route=AA content=$x,$y viewport=$viewport target=${app.prefs.aaWidth}x${app.prefs.aaHeight} mapped=${point.first},${point.second}")
+                    "touch route=AA content=$x,$mappedY viewport=$viewport target=${app.prefs.aaWidth}x${app.prefs.aaHeight} mapped=${point.first},${point.second}")
                 aa.sendTouch(point.first, point.second, t.action)
             }
             state.value.mirroring -> {
