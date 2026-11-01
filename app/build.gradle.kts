@@ -19,8 +19,8 @@ android {
         applicationId = "app.ft.xa60"
         minSdk = 29
         targetSdk = 36
-        versionCode = 155
-        versionName = "3.9.41-xa60-touch-cal-test"
+        versionCode = 156
+        versionName = "3.9.42-xa60-phone-cal-test"
     }
 
     signingConfigs {
