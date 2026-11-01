@@ -268,7 +268,12 @@ class IccoaService : Service() {
                     else control(category, method, body)
                 }
             },
-            onClosed = { reason -> current { connectionFailed(reason) } })
+            onClosed = { reason -> current { connectionFailed(reason) } },
+            onControlReady = { current {
+                navigationRetries = 0
+                main.removeCallbacks(navigationSend)
+                navigationSend.run()
+            } })
         session = connection
         // Publish only after the captured session has been initialized: AA callbacks
         // arrive on its reader thread and can run as soon as the hook is visible.
