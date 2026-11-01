@@ -152,6 +152,10 @@ class IccoaProjection(
         CarTouchCalibration.begin(display.width, display.height)
         DiagLog.i("ICCOA", "FT touch calibration requested from phone display=${display.width}x${display.height}")
     }
+    fun resetTouchCalibration() = onMain {
+        if (!active) return@onMain
+        CarTouchCalibration.reset(context, display.width, display.height)
+    }
     fun touch(action: Int, x: Int, y: Int) = touch(CarTouch(action, x, y))
     fun touch(raw: CarTouch) = onMain {
         if (!active) return@onMain
@@ -163,10 +167,11 @@ class IccoaProjection(
         // Toyota's UIBC X geometry also affects phone mirroring. AA owns a separate
         // viewport/protocol: keep it uncalibrated until physically validated.
         val applyCalibration = !state.value.aaOverlay
-        val x = if (applyCalibration) CarTouchCalibration.correct(context, initialX, display.width, display.height) else initialX
-        val x2 = if (applyCalibration && second.first >= 0)
-            CarTouchCalibration.correct(context, second.first, display.width, display.height) else second.first
-        val t = raw.copy(x = x, y = y, x2 = x2, y2 = second.second)
+        val (x, mappedY) = if (applyCalibration)
+            CarTouchCalibration.correct(context, initialX, y, display.width, display.height) else initialX to y
+        val (x2, y2) = if (applyCalibration && second.first >= 0 && second.second >= 0)
+            CarTouchCalibration.correct(context, second.first, second.second, display.width, display.height) else second
+        val t = raw.copy(x = x, y = mappedY, x2 = x2, y2 = y2)
         if (t.action == CarTouch.DOWN) touchFt = CarTouchZones.hit(x, y)
         if (touchFt) {
             if (t.action == CarTouch.DOWN) DiagLog.i("ICCOA", "touch route=FT content=$x,$y")
