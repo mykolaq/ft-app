@@ -335,6 +335,8 @@
     <string name="widget_weather">کەشوهەوا</string>
     <string name="widget_battery">باتریا مۆبایلی</string>
     <string name="widget_speed">لەز</string>
+    <string name="widget_coordinates">کۆردینات</string>
+    <string name="widget_course">ئاراستە</string>
     <string name="widget_calendar">بویەرا بهێت</string>
     <string name="widget_no_event">چ تشتەکێ بهێت نینە</string>
     <string name="widget_temperature">پلا گەرمییێ</string>
