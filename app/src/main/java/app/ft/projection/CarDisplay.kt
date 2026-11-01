@@ -69,19 +69,20 @@ class CarDisplay(private val context: Context) {
         streamWidth = plan.streamWidth
         streamHeight = plan.streamHeight
         frameIntervalMs = (1000L / fps.coerceIn(1, 120)).coerceAtLeast(8L)
-        var enc = SurfaceEncoder(streamWidth, streamHeight, fps, plan.bitrate, plan.qpFloor, onConfig, onFrame, gated = true, onTimedFrame = onTimedFrame, savePower = savePower, constantBitrate = plan.constantBitrate)
+        var enc = SurfaceEncoder(streamWidth, streamHeight, fps, plan.bitrate, plan.qpFloor, onConfig, onFrame, gated = true, onTimedFrame = onTimedFrame, savePower = savePower, constantBitrate = plan.constantBitrate, onFailure = { error -> main.post { onFailure?.invoke(error) } })
         encoder = enc
         enc.start()
-        val g = FrameGate(width, height, streamWidth, streamHeight, enc.surface ?: throw IllegalStateException("no encoder surface"))
+        val g = FrameGate(width, height, streamWidth, streamHeight, enc.surface ?: throw IllegalStateException("no encoder surface"), preserveAspect = plan.preserveAspect)
         val surface = if (g.start(fps)) {
             gate = g
             g.input ?: throw IllegalStateException("no frame gate surface")
         } else {
             enc.stop()
+            if (plan.preserveAspect) throw IllegalStateException("Aspect-preserving frame gate required")
             width = streamWidth
             height = streamHeight
             DiagLog.w(tag, "drawing straight at ${streamWidth}x$streamHeight, the car stretches it to fill its screen")
-            enc = SurfaceEncoder(streamWidth, streamHeight, fps, plan.bitrate, plan.qpFloor, onConfig, onFrame, onTimedFrame = onTimedFrame, savePower = savePower, constantBitrate = plan.constantBitrate)
+            enc = SurfaceEncoder(streamWidth, streamHeight, fps, plan.bitrate, plan.qpFloor, onConfig, onFrame, onTimedFrame = onTimedFrame, savePower = savePower, constantBitrate = plan.constantBitrate, onFailure = { error -> main.post { onFailure?.invoke(error) } })
             encoder = enc
             enc.start()
             enc.surface ?: throw IllegalStateException("no encoder surface")
@@ -152,6 +153,15 @@ class CarDisplay(private val context: Context) {
         val sw = streamWidth.coerceAtLeast(1)
         val sh = streamHeight.coerceAtLeast(1)
         if (sw == width && sh == height) return x to y
+        if (video?.preserveAspect == true) {
+            val scale = minOf(sw.toDouble() / width, sh.toDouble() / height)
+            val visibleW = width * scale
+            val visibleH = height * scale
+            val left = (sw - visibleW) / 2.0
+            val top = (sh - visibleH) / 2.0
+            return ((x - left) / scale).toInt().coerceIn(0, width - 1) to
+                ((y - top) / scale).toInt().coerceIn(0, height - 1)
+        }
         return (x.toLong() * width / sw).toInt() to (y.toLong() * height / sh).toInt()
     }
 
