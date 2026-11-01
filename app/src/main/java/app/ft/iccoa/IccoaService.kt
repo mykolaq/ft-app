@@ -86,6 +86,9 @@ class IccoaService : Service() {
             VehicleTelemetry.publish(VehicleLocation(
                 source = "ICCOA", receivedAtMs = System.currentTimeMillis(),
                 latitude = fix.latitude, longitude = fix.longitude,
+                // OEM CarLinkSensorMgr reads Android Location.getLatitude/Longitude.
+                // WGS84 is the Android API contract; confirm actual HU values on-road.
+                coordinatesUnit = "ANDROID_LOCATION_WGS84",
                 speedRaw = fix.speedRaw, headingRaw = fix.headingRaw,
                 satellitesUsed = fix.satellitesUsed, satellitesVisible = fix.satellitesVisible,
                 deviceTimestampRaw = fix.timestampRaw
