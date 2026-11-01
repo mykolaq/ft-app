@@ -20,6 +20,8 @@ internal object AaCarGps {
             !location.positionFresh(nowMs)) return null
         val latitude = location.displayLatitude ?: return null
         val longitude = location.displayLongitude ?: return null
+        // An uninitialized OEM fix often uses Null Island: never send it to AA Maps.
+        if (latitude == 0.0 && longitude == 0.0) return null
         // Android Auto GPSLocationData: repeated field 1; sub-fields 2 & 3 are required
         // int32 microdegrees, NOT ICCOA's double or Baidu's raw int32.
         val latMicro = (latitude * 1_000_000.0).roundToInt()
