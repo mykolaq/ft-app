@@ -25,7 +25,8 @@ class SurfaceEncoder(
     private val onTimedFrame: ((ByteArray, Boolean, Long) -> Unit)? = null,
     private val savePower: Boolean = false,
     private val constantBitrate: Boolean = false,
-    private val onFailure: ((Throwable) -> Unit)? = null
+    private val onFailure: ((Throwable) -> Unit)? = null,
+    private val startCandidateIndex: Int = 0
 ) {
     private val tag = "Encoder"
     private val fps = fps.coerceIn(1, 60)
@@ -33,6 +34,13 @@ class SurfaceEncoder(
     private val running = AtomicBoolean(false)
     private val asyncFailed = AtomicBoolean(false)
     private val firstKeyFrameLogged = AtomicBoolean(false)
+    private val firstOutputLogged = AtomicBoolean(false)
+    private val sawSps = AtomicBoolean(false)
+    private val sawPps = AtomicBoolean(false)
+    @Volatile var selectedCandidateIndex: Int = -1
+        private set
+    @Volatile var candidateCount: Int = 0
+        private set
     private var thread: HandlerThread? = null
     private var handler: Handler? = null
     private var codec: MediaCodec? = null
@@ -44,33 +52,40 @@ class SurfaceEncoder(
         if (!running.compareAndSet(false, true)) return
         asyncFailed.set(false)
         firstKeyFrameLogged.set(false)
+        firstOutputLogged.set(false)
+        sawSps.set(false)
+        sawPps.set(false)
+        selectedCandidateIndex = -1
         val t = HandlerThread("FT-Encoder").also { it.start() }
         thread = t
         val h = Handler(t.looper)
         handler = h
         // Start from portable AVC Surface input. Never force a guessed AVC level
         // or an absurd operating rate before the first encoded frame.
-        val setups = listOf(
-            "minimal" to minimal(),
-            "baseline" to minimal(baseline = true)
-        )
-        for (name in encoders()) {
-            for ((label, format) in setups) {
-                val c = runCatching { MediaCodec.createByCodecName(name) }.getOrNull() ?: break
-                try {
-                    c.setCallback(callback(), h)
-                    c.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
-                    surface = c.createInputSurface()
-                    c.start()
-                    codec = c
-                    DiagLog.i(tag, "encoder started ${width}x${height}@$fps at ${bitrate / 1000} kbps, ${if (constantBitrate) "CBR, " else ""}${c.name} ($label); awaiting actual SPS/PPS/IDR")
-                    return
-                } catch (t: Throwable) {
-                    DiagLog.w(tag, "encoder $name refused the $label setup for ${width}x$height: ${t.javaClass.simpleName} ${t.message ?: ""}")
-                    runCatching { surface?.release() }
-                    surface = null
-                    runCatching { c.release() }
-                }
+        // Bounded attempts. Each fallback keeps the exact RTSP-agreed stream geometry.
+        val candidates = encoders().flatMap { codecName ->
+            listOf("minimal", "baseline").map { label -> codecName to label }
+        }.take(MAX_CANDIDATES)
+        candidateCount = candidates.size
+        for ((index, candidate) in candidates.withIndex()) {
+            if (index < startCandidateIndex) continue
+            val (name, label) = candidate
+            val format = minimal(baseline = label == "baseline")
+            val c = runCatching { MediaCodec.createByCodecName(name) }.getOrNull() ?: continue
+            try {
+                c.setCallback(callback(), h)
+                c.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+                surface = c.createInputSurface()
+                c.start()
+                codec = c
+                selectedCandidateIndex = index
+                DiagLog.i(tag, "codec STARTED_PENDING_OUTPUT name=${c.name} candidate=${index + 1}/${candidateCount} format=${width}x${height}@$fps bitrate=$bitrate CBR=$constantBitrate profile=$label; SPS/PPS/IDR not yet proven")
+                return
+            } catch (t: Throwable) {
+                DiagLog.w(tag, "codec CONFIGURE_REJECTED name=$name candidate=${index + 1}/${candidateCount} mode=$label error=${t.javaClass.simpleName}")
+                runCatching { surface?.release() }
+                surface = null
+                runCatching { c.release() }
             }
         }
         running.set(false)
@@ -125,10 +140,14 @@ class SurfaceEncoder(
                     buf.limit(info.offset + info.size)
                     val frame = ByteArray(info.size)
                     buf.get(frame)
+                    recordNals(frame)
                     if (info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) {
-                        onConfig(frame)
+                        DiagLog.i(tag, "codec CSD_BUFFER bytes=${frame.size} sps=${sawSps.get()} pps=${sawPps.get()}")
+                        if (running.get() && !asyncFailed.get()) onConfig(frame)
                         return
                     }
+                    if (firstOutputLogged.compareAndSet(false, true))
+                        DiagLog.i(tag, "codec FIRST_OUTPUT bytes=${frame.size} sps=${sawSps.get()} pps=${sawPps.get()}")
                     val key = info.flags and MediaCodec.BUFFER_FLAG_KEY_FRAME != 0
                     if (key && frame.size >= BIG_FRAME) DiagLog.w(tag, "key picture of ${frame.size / 1024} KB")
                     val drawnUs = info.presentationTimeUs
@@ -137,10 +156,12 @@ class SurfaceEncoder(
                         lateNoted = SystemClock.elapsedRealtime()
                         DiagLog.w(tag, "a picture came out of the encoder $late ms after it was drawn")
                     }
-                    if (key && firstKeyFrameLogged.compareAndSet(false, true))
-                        DiagLog.i(tag, "first H264 keyframe bytes=${frame.size} ptsUs=${info.presentationTimeUs}")
                     if (running.get() && !asyncFailed.get()) {
                         onTimedFrame?.invoke(frame, key, info.presentationTimeUs) ?: onFrame(frame, key)
+                        if (key && firstKeyFrameLogged.compareAndSet(false, true)) {
+                            val actualIdr = 5 in AvcNalScan.types(frame)
+                            DiagLog.i(tag, "codec FIRST_KEY_OUTPUT idr=$actualIdr sps=${sawSps.get()} pps=${sawPps.get()} passedToTransport=true bytes=${frame.size} ptsUs=${info.presentationTimeUs}")
+                        }
                     }
                 } catch (t: Throwable) {
                     DiagLog.e(tag, "output error", t)
@@ -150,7 +171,7 @@ class SurfaceEncoder(
             }
 
             override fun onError(codec: MediaCodec, e: MediaCodec.CodecException) {
-                DiagLog.e(tag, "codec error; terminate projection and renegotiate", e)
+                DiagLog.e(tag, "codec ASYNC_FAILURE name=${codec.name} errorCode=${e.errorCode} recoverable=${e.isRecoverable} transient=${e.isTransient} candidate=${selectedCandidateIndex + 1}/$candidateCount; retry candidate in same projection if available", e)
                 if (asyncFailed.compareAndSet(false, true)) onFailure?.invoke(e)
             }
 
@@ -161,16 +182,23 @@ class SurfaceEncoder(
                         val d = b.duplicate()
                         val bytes = ByteArray(d.remaining())
                         d.get(bytes)
+                        recordNals(bytes)
                         out.write(bytes)
                     }
                 }
                 if (out.size() > 0) {
-                    DiagLog.i(tag, "H264 SPS/PPS codec config bytes=${out.size()}")
-                    onConfig(out.toByteArray())
+                    DiagLog.i(tag, "codec CSD_FORMAT bytes=${out.size()} sps=${sawSps.get()} pps=${sawPps.get()}")
+                    if (running.get() && !asyncFailed.get()) onConfig(out.toByteArray())
                 }
                 DiagLog.i(tag, "format ${format.getInteger(MediaFormat.KEY_WIDTH)}x${format.getInteger(MediaFormat.KEY_HEIGHT)}")
             }
         }
+
+    private fun recordNals(data: ByteArray) {
+        val kinds = AvcNalScan.types(data)
+        if (7 in kinds) sawSps.set(true)
+        if (8 in kinds) sawPps.set(true)
+    }
 
     fun requestKeyframe(): Boolean {
         val c = codec ?: return false
@@ -218,5 +246,41 @@ class SurfaceEncoder(
 
     companion object {
         private const val BIG_FRAME = 256 * 1024
+        private const val MAX_CANDIDATES = 8
+    }
+}
+
+/** Small pure decoder for AVC NAL headers; does not copy or retain screen data. */
+internal object AvcNalScan {
+    fun types(data: ByteArray): Set<Int> {
+        val found = mutableSetOf<Int>()
+        var i = 0
+        var annexB = false
+        while (i + 3 < data.size) {
+            val a = data[i].toInt() and 255
+            val b = data[i + 1].toInt() and 255
+            val c = data[i + 2].toInt() and 255
+            val four = i + 3 < data.size && c == 0 && (data[i + 3].toInt() and 255) == 1
+            if (a == 0 && b == 0 && (c == 1 || four)) {
+                val pos = i + if (four) 4 else 3
+                if (pos < data.size) found += data[pos].toInt() and 31
+                annexB = true
+                i = pos
+            } else i++
+        }
+        if (annexB) return found
+        // Some AVC encoders return length-prefixed access units instead.
+        i = 0
+        while (i + 4 < data.size) {
+            val size = ((data[i].toInt() and 255) shl 24) or
+                ((data[i + 1].toInt() and 255) shl 16) or
+                ((data[i + 2].toInt() and 255) shl 8) or (data[i + 3].toInt() and 255)
+            if (size <= 0 || size > data.size - i - 4) break
+            found += data[i + 4].toInt() and 31
+            i += 4 + size
+        }
+        if (found.isEmpty() && data.isNotEmpty() && (data[0].toInt() and 31) in 1..12)
+            found += data[0].toInt() and 31
+        return found
     }
 }
