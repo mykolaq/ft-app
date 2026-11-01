@@ -7,7 +7,7 @@ plugins {
 }
 
 val keystoreProps = Properties().apply {
-    val f = rootProject.file("keystore.properties")
+    val f = rootProject.file("ft-xa60-signing.properties")
     if (f.exists()) f.inputStream().use { load(it) }
 }
 
@@ -16,7 +16,7 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "app.ft"
+        applicationId = "app.ft.xa60"
         minSdk = 29
         targetSdk = 36
         versionCode = 153
@@ -25,7 +25,7 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = rootProject.file(keystoreProps.getProperty("storeFile", "ft-release.jks"))
+            storeFile = rootProject.file(keystoreProps.getProperty("storeFile", ".ft-xa60/ft-xa60-owner.p12"))
             storePassword = keystoreProps.getProperty("storePassword")
             keyAlias = keystoreProps.getProperty("keyAlias")
             keyPassword = keystoreProps.getProperty("keyPassword")
@@ -38,9 +38,9 @@ android {
             signingConfig = signingConfigs.getByName("release")
         }
         debug {
-            // XA60 experimental APK uses an isolated Android debug key.
-            // Never reuse the upstream FT author's private release signing identity.
-            signingConfig = signingConfigs.getByName("debug")
+            // CI restores one owner-controlled PKCS12 key from GitHub Actions Secrets.
+            // Fail closed if that key was not supplied.
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 
