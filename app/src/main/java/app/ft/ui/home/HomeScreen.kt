@@ -211,7 +211,7 @@ fun HomeScreen(pad: PaddingValues, onOpenAccessibility: () -> Unit, onOpenOverla
                     Text(if (touchCalibration.step > 0)
                         "На экране автомобиля нажмите точно в центр зелёного круга. Точка ${touchCalibration.step} из 2."
                         else "Запуск с телефона: на экране автомобиля появятся две контрольные точки.")
-                    FilledTonalButton(onClick = { IccoaService.calibrateTouch(context) }) {
+                    FilledTonalButton(onClick = { IccoaService.calibrateTouch() }) {
                         Text(if (touchCalibration.step > 0) "Начать заново" else "Калибровать касания на ГУ")
                     }
                 }
