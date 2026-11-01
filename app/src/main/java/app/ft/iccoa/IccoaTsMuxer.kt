@@ -19,6 +19,8 @@ internal class IccoaTsMuxer(private val output: OutputStream) {
     private val adts = byteArrayOf(0xff.toByte(), 0xf1.toByte(), 0x4c, 0, 0, 0, 0xfc.toByte())
     private val empty = byteArrayOf()
     private var packetCount = 0
+    var writtenRtpPackets = 0L
+        private set
     private var timestamp = 0L
 
     fun configure(bytes: ByteArray) { config = annexB(bytes) }
@@ -142,6 +144,7 @@ internal class IccoaTsMuxer(private val output: OutputStream) {
             .put((33 or if (last) 0x80 else 0).toByte())
             .putShort((sequence++).toShort()).putInt(timestamp.toInt()).putInt(ssrc)
         output.write(rtpPacket, 0, size + 2)
+        writtenRtpPackets++
         packetCount = 0
     }
 
