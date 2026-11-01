@@ -15,6 +15,8 @@ data class VehicleLocation(
     val rawLongitude: Long? = null,
     val speedRaw: Long? = null,
     val headingRaw: Long? = null,
+    val speedKmh: Float? = null,
+    val headingDegrees: Float? = null,
     val satellitesUsed: Long? = null,
     val satellitesVisible: Long? = null,
     val deviceTimestampRaw: Long? = null,
