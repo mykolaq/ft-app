@@ -164,7 +164,10 @@ class SurfaceEncoder(
                         }
                     }
                 } catch (t: Throwable) {
-                    DiagLog.e(tag, "output error", t)
+                    if (running.get() && asyncFailed.compareAndSet(false, true)) {
+                        DiagLog.e(tag, "codec OUTPUT_CALLBACK_FAILURE candidate=${selectedCandidateIndex + 1}/$candidateCount sps=${sawSps.get()} pps=${sawPps.get()}", t)
+                        onFailure?.invoke(t)
+                    }
                 } finally {
                     runCatching { codec.releaseOutputBuffer(index, false) }
                 }
@@ -172,7 +175,7 @@ class SurfaceEncoder(
 
             override fun onError(codec: MediaCodec, e: MediaCodec.CodecException) {
                 DiagLog.e(tag, "codec ASYNC_FAILURE name=${codec.name} errorCode=${e.errorCode} recoverable=${e.isRecoverable} transient=${e.isTransient} candidate=${selectedCandidateIndex + 1}/$candidateCount; retry candidate in same projection if available", e)
-                if (asyncFailed.compareAndSet(false, true)) onFailure?.invoke(e)
+                if (running.get() && asyncFailed.compareAndSet(false, true)) onFailure?.invoke(e)
             }
 
             override fun onOutputFormatChanged(codec: MediaCodec, format: MediaFormat) {
@@ -232,16 +235,20 @@ class SurfaceEncoder(
         }
     }
 
+    @Synchronized
     fun stop() {
         if (!running.getAndSet(false)) return
-        runCatching { codec?.stop() }
-        runCatching { codec?.release() }
+        val ownedCodec = codec
+        val ownedSurface = surface
         codec = null
-        runCatching { surface?.release() }
         surface = null
+        handler = null
+        runCatching { ownedCodec?.stop() }
+        runCatching { ownedCodec?.release() }
+        runCatching { ownedSurface?.release() }
         runCatching { thread?.quitSafely() }
         thread = null
-        handler = null
+        DiagLog.i(tag, "codec STOP candidate=${selectedCandidateIndex + 1}/$candidateCount sps=${sawSps.get()} pps=${sawPps.get()} firstKey=${firstKeyFrameLogged.get()} asyncFailure=${asyncFailed.get()}")
     }
 
     companion object {
