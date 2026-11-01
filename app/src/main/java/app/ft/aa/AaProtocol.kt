@@ -68,6 +68,7 @@ object AaProtocol {
     const val SENSOR_START_REQUEST = 0x8001
     const val SENSOR_START_RESPONSE = 0x8002
     const val SENSOR_EVENT_INDICATION = 0x8003
+    const val SENSOR_ERROR = 0x8004
 
     const val INPUT_EVENT_INDICATION = 0x8001
     const val BINDING_REQUEST = 0x8002
