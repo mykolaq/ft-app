@@ -17,6 +17,7 @@ internal class VehicleLogSampler(
     private var previousFrameMs: Long? = null
     private var lastOutputMs: Long? = null
     private var fastUntilMs = Long.MIN_VALUE
+    private var pendingEvent: String? = null
 
     fun accept(source: String, nowMs: Long, hasFix: Boolean): Decision? {
         if (nowMs < 0L) return null
@@ -31,14 +32,21 @@ internal class VehicleLogSampler(
         previousSource = source
         previousHasFix = hasFix
         previousFrameMs = nowMs
-        if (reason != null) fastUntilMs = nowMs + eventWindowMs
+        if (reason != null) {
+            fastUntilMs = nowMs + eventWindowMs
+            pendingEvent = reason
+        }
 
         val fast = nowMs <= fastUntilMs
         val interval = if (fast) eventIntervalMs else normalIntervalMs
         val output = lastOutputMs
-        if (reason != null || output == null || nowMs < output || nowMs - output >= interval) {
+        // Hard rate cap, including rapid back-to-back GPS events. Keep pending event
+        // reason until the next permitted report sample.
+        if (output == null || nowMs < output || nowMs - output >= interval) {
             lastOutputMs = nowMs
-            return Decision(reason ?: "PERIODIC", fast)
+            val event = pendingEvent ?: "PERIODIC"
+            pendingEvent = null
+            return Decision(event, fast)
         }
         return null
     }
@@ -49,5 +57,6 @@ internal class VehicleLogSampler(
         previousFrameMs = null
         lastOutputMs = null
         fastUntilMs = Long.MIN_VALUE
+        pendingEvent = null
     }
 }
