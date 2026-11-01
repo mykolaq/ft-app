@@ -329,6 +329,7 @@ class IccoaService : Service() {
         fun submitPin(context: Context, pin: String) = send(context, PIN, pin = pin)
         fun disconnect(context: Context) = send(context, DISCONNECT)
         fun calibrateTouch() { if (_state.value.connected) instance?.projection?.startTouchCalibration() }
+        fun resetTouchCalibration() { if (_state.value.connected) instance?.projection?.resetTouchCalibration() }
         fun stop(context: Context) { if (instance != null) send(context, STOP) }
         private fun send(context: Context, action: String, address: String? = null, pin: String? = null) {
             val intent = Intent(context, IccoaService::class.java).setAction(action)
