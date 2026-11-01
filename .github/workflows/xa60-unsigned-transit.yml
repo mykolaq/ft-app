@@ -2,7 +2,7 @@ name: XA60 unsigned transit APK for offline owner signing
 
 on:
   push:
-    branches: [openivi/xa60-iccoa-build154]
+    branches: [openivi/xa60-iccoa-build153]
     paths:
       - 'app/**'
       - '.github/workflows/xa60-unsigned-transit.yml'
