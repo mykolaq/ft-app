@@ -2,7 +2,7 @@ name: FT XA60 build 154 (experimental)
 
 on:
   push:
-    branches: [openivi/xa60-iccoa-build154]
+    branches: [openivi/xa60-iccoa-build153]
   workflow_dispatch:
 
 permissions:
