@@ -12,6 +12,7 @@ import java.net.Socket
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 
 /** Owns only WFD sockets and bounded media queues; no CarLife service or framing. */
 internal class IccoaMediaTransport(
@@ -26,6 +27,10 @@ internal class IccoaMediaTransport(
     private val onClosed: (String) -> Unit
 ) : AutoCloseable {
     private val closed = AtomicBoolean(false)
+    private val rtpPacketCount = AtomicLong(0)
+    private val rtpVideoFrames = AtomicLong(0)
+    private val rtpAudioFrames = AtomicLong(0)
+    private val rtpKeyFrames = AtomicLong(0)
     private val executor = Executors.newCachedThreadPool { Thread(it, "ICCOA-media") }
     private val watchdog = Executors.newSingleThreadScheduledExecutor { Thread(it, "ICCOA-RTP-watch") }
     private val queue = IccoaStreamQueue()
@@ -108,7 +113,10 @@ internal class IccoaMediaTransport(
         } catch (e: Exception) { runCatching { socket.close() }; fail("RTP: ${e.javaClass.simpleName}") }
     }
 
-    fun configure(bytes: ByteArray) { codecConfig = bytes.copyOf() }
+    fun configure(bytes: ByteArray) {
+        codecConfig = bytes.copyOf()
+        DiagLog.i("ICCOA", "H264 CONFIG_RECEIVED bytes=${bytes.size}")
+    }
 
     /** Takes ownership of a fresh encoded array from SurfaceEncoder. */
     fun frame(data: ByteArray, key: Boolean, ptsUs: Long) {
@@ -148,6 +156,7 @@ internal class IccoaMediaTransport(
                 if (!queue.current(frame)) continue
                 val sender = muxer ?: continue
                 writingAt = System.nanoTime()
+                val beforePackets = sender.writtenRtpPackets
                 if (frame.video) {
                     val config = codecConfig
                     if (appliedConfig !== config) {
@@ -157,17 +166,21 @@ internal class IccoaMediaTransport(
                     sender.video(frame.data, frame.key, frame.pts)
                 } else sender.audio(frame.data, frame.pts)
                 val finished = System.nanoTime()
+                rtpPacketCount.addAndGet(sender.writtenRtpPackets - beforePackets)
                 val elapsedMs = TimeUnit.NANOSECONDS.toMillis(finished - writingAt)
                 writingAt = 0
                 maxWriteMs = maxOf(maxWriteMs, elapsedMs)
                 if (frame.video) {
+                    rtpVideoFrames.incrementAndGet()
+                    if (frame.key && rtpKeyFrames.incrementAndGet() == 1L)
+                        DiagLog.i("ICCOA", "RTP FIRST_KEY_FRAME_WRITTEN packets=${rtpPacketCount.get()} bytes=${frame.data.size}")
                     videoFrames++
                     videoBytes += frame.data.size
                     maxVideoAgeMs = maxOf(maxVideoAgeMs, (finished / 1000 - frame.pts) / 1000)
-                }
+                } else rtpAudioFrames.incrementAndGet()
                 val reportMs = TimeUnit.NANOSECONDS.toMillis(finished - reportAt)
                 if (reportMs >= 10_000) {
-                    DiagLog.i("ICCOA", "RTP last ${reportMs}ms: video fps=${videoFrames * 1000L / reportMs} kbps=${videoBytes * 8 / reportMs} maxAge=${maxVideoAgeMs}ms maxWrite=${maxWriteMs}ms")
+                    DiagLog.i("ICCOA", "RTP last ${reportMs}ms: video fps=${videoFrames * 1000L / reportMs} kbps=${videoBytes * 8 / reportMs} maxAge=${maxVideoAgeMs}ms maxWrite=${maxWriteMs}ms packetsTotal=${rtpPacketCount.get()} videoTotal=${rtpVideoFrames.get()} audioTotal=${rtpAudioFrames.get()} keyTotal=${rtpKeyFrames.get()}")
                     reportAt = finished
                     videoFrames = 0; videoBytes = 0; maxVideoAgeMs = 0; maxWriteMs = 0
                 }
@@ -222,6 +235,7 @@ internal class IccoaMediaTransport(
     private fun fail(reason: String) { if (!closed.get()) onClosed(reason) }
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
+        DiagLog.i("ICCOA", "RTP CLOSE packets=${rtpPacketCount.get()} videoFrames=${rtpVideoFrames.get()} keyFrames=${rtpKeyFrames.get()} audioFrames=${rtpAudioFrames.get()}")
         runCatching { rtspServer?.close() }; runCatching { inputServer?.close() }
         runCatching { rtsp?.close() }; runCatching { videoSocket?.close() }
         synchronized(this) { aac?.close(); aac = null }
