@@ -323,6 +323,7 @@ class AaSession(
         carGpsSubscribed = true
         val interval = requestedMs.coerceIn(100L, 1_000L)
         carGpsJob = scope.launch(Dispatchers.IO) {
+            val gpsGate = AaGpsGate()
             var lastPositionAt = Long.MIN_VALUE
             var lastSeenAt = System.currentTimeMillis()
             var unavailable = false
@@ -330,7 +331,7 @@ class AaSession(
             while (isActive && lifecycle.running && carGpsSubscribed) {
                 val now = System.currentTimeMillis()
                 val car = VehicleTelemetry.current.value
-                val packet = AaCarGps.event(car, now)
+                val packet = gpsGate.accept(car, now)
                 if (packet != null && car != null && car.positionAtMs != lastPositionAt) {
                     if (unavailable) {
                         sendEnc(AaProtocol.CH_SENSOR, AaProtocol.SENSOR_ERROR, AaCarGps.sensorError(1))
