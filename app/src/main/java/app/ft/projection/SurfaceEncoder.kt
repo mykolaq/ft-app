@@ -3,7 +3,6 @@ package app.ft.projection
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
@@ -49,20 +48,11 @@ class SurfaceEncoder(
         thread = t
         val h = Handler(t.looper)
         handler = h
-        val tuning = VideoPlans.encoderKeys(
-            Build.HARDWARE,
-            if (Build.VERSION.SDK_INT >= 31) Build.SOC_MODEL else "",
-            Build.VERSION.SDK_INT,
-            Build.BRAND,
-            Build.BOARD,
-            qpFloor
-        )
+        // Start from portable AVC Surface input. Never force a guessed AVC level
+        // or an absurd operating rate before the first encoded frame.
         val setups = listOf(
-            "full" to tuned(tuning),
-            "without vendor tuning" to tuned(emptyMap()),
-            "plain" to plain(MediaCodecInfo.CodecProfileLevel.AVCLevel4),
-            "plain at level 3.1" to plain(MediaCodecInfo.CodecProfileLevel.AVCLevel31),
-            "minimal" to minimal()
+            "minimal" to minimal(),
+            "baseline" to minimal(baseline = true)
         )
         for (name in encoders()) {
             for ((label, format) in setups) {
@@ -73,7 +63,7 @@ class SurfaceEncoder(
                     surface = c.createInputSurface()
                     c.start()
                     codec = c
-                    DiagLog.i(tag, "encoder started ${width}x${height}@$fps at ${bitrate / 1000} kbps, ${if (constantBitrate) "CBR, " else ""}a key picture every second, ${if (savePower) "saving power, " else ""}${c.name}${if (label == "full") "" else " ($label)"}${if (label != "full" || tuning.isEmpty()) "" else ", " + tuning.entries.joinToString { "${it.key}=${it.value}" }}")
+                    DiagLog.i(tag, "encoder started ${width}x${height}@$fps at ${bitrate / 1000} kbps, ${if (constantBitrate) "CBR, " else ""}${c.name} ($label); awaiting actual SPS/PPS/IDR")
                     return
                 } catch (t: Throwable) {
                     DiagLog.w(tag, "encoder $name refused the $label setup for ${width}x$height: ${t.javaClass.simpleName} ${t.message ?: ""}")
@@ -97,13 +87,19 @@ class SurfaceEncoder(
         }.getOrDefault(emptyList())
         val fits = all.filter { info ->
             runCatching {
-                info.getCapabilitiesForType(MediaFormat.MIMETYPE_VIDEO_AVC).videoCapabilities
-                    .areSizeAndRateSupported(width, height, fps.toDouble())
+                val caps = info.getCapabilitiesForType(MediaFormat.MIMETYPE_VIDEO_AVC)
+                val video = caps.videoCapabilities
+                caps.colorFormats.contains(MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface) &&
+                    video.areSizeAndRateSupported(width, height, fps.toDouble()) &&
+                    video.bitrateRange.contains(bitrate) &&
+                    (!constantBitrate || caps.encoderCapabilities.isBitrateModeSupported(
+                        MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR
+                    )) &&
+                    caps.isFormatSupported(minimal())
             }.getOrDefault(false)
         }
-        if (fits.isEmpty()) DiagLog.w(tag, "no encoder advertises ${width}x${height}@${fps}")
-        val ordered = fits.sortedBy { if (it.isHardwareAccelerated) 0 else 1 }.map { it.name }
-        return ordered.distinct()
+        if (fits.isEmpty()) DiagLog.w(tag, "no advertised AVC Surface encoder for ${width}x${height}@$fps ${bitrate / 1000} kbps")
+        return fits.sortedBy { if (it.isHardwareAccelerated) 0 else 1 }.map { it.name }.distinct()
     }
 
     private fun base(): MediaFormat = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height).apply {
@@ -114,33 +110,8 @@ class SurfaceEncoder(
         if (constantBitrate) setInteger(MediaFormat.KEY_BITRATE_MODE, MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR)
     }
 
-    private fun tuned(tuning: Map<String, Int>): MediaFormat = base().apply {
-        setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline)
-        setLong(MediaFormat.KEY_REPEAT_PREVIOUS_FRAME_AFTER, 100_000L)
-        setLong(MediaFormat.KEY_DURATION, 100_000L)
-        setInteger(MediaFormat.KEY_BITRATE_MODE, if (constantBitrate) MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR else MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR)
-        setInteger(MediaFormat.KEY_LEVEL, MediaCodecInfo.CodecProfileLevel.AVCLevel4)
-        setInteger(MediaFormat.KEY_MAX_B_FRAMES, 0)
-        if (!gated) setFloat(MediaFormat.KEY_MAX_FPS_TO_ENCODER, this@SurfaceEncoder.fps.toFloat())
-        runCatching {
-            setInteger(MediaFormat.KEY_PRIORITY, 0)
-            if (savePower) setFloat(MediaFormat.KEY_OPERATING_RATE, this@SurfaceEncoder.fps.toFloat())
-            else setInteger(MediaFormat.KEY_OPERATING_RATE, Short.MAX_VALUE.toInt())
-            if (Build.VERSION.SDK_INT >= 30) setInteger(MediaFormat.KEY_LATENCY, 1)
-        }
-        tuning.forEach { (k, v) -> setInteger(k, v) }
-    }
-
-    private fun plain(level: Int): MediaFormat = base().apply {
-        setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline)
-        setInteger(MediaFormat.KEY_LEVEL, level)
-        setLong(MediaFormat.KEY_REPEAT_PREVIOUS_FRAME_AFTER, 100_000L)
-        setInteger(MediaFormat.KEY_MAX_B_FRAMES, 0)
-        if (!gated) setFloat(MediaFormat.KEY_MAX_FPS_TO_ENCODER, this@SurfaceEncoder.fps.toFloat())
-    }
-
-    private fun minimal(): MediaFormat = base().apply {
-        setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline)
+    private fun minimal(baseline: Boolean = false): MediaFormat = base().apply {
+        if (baseline) setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline)
     }
 
     private fun callback() = object : MediaCodec.Callback() {
