@@ -49,14 +49,14 @@ object VehicleTelemetry {
         lastLogAtMs = now
         lastLogSource = sample.source
         fun dec(value: Double?) = value?.let { String.format(java.util.Locale.US, "%.7f", it) } ?: "NA"
-        DiagLog.i("VehicleGPS", "protocol=${sample.source} timeMs=$now " +
+        runCatching { DiagLog.i("VehicleGPS", "protocol=${sample.source} timeMs=$now " +
             "latitude=${dec(sample.latitude)} longitude=${dec(sample.longitude)} " +
             "rawLat=${sample.rawLatitude ?: "NA"} rawLon=${sample.rawLongitude ?: "NA"} " +
             "speedRaw=${sample.speedRaw ?: "NA"} headingRaw=${sample.headingRaw ?: "NA"} " +
             "satUsed=${sample.satellitesUsed ?: "NA"} satVisible=${sample.satellitesVisible ?: "NA"} " +
             "carTimestamp=${sample.deviceTimestampRaw ?: "NA"} " +
             "positionAgeMs=${if (sample.positionAtMs == 0L) -1 else now - sample.positionAtMs} " +
-            "units=${sample.coordinatesUnit}/${sample.speedUnit}/${sample.headingUnit}")
+            "units=${sample.coordinatesUnit}/${sample.speedUnit}/${sample.headingUnit}") }
     }
 
     @Synchronized fun publish(location: VehicleLocation) {
