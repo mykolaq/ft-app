@@ -39,10 +39,30 @@ data class VehicleLocation(
 object VehicleTelemetry {
     private val _current = MutableStateFlow<VehicleLocation?>(null)
     val current: StateFlow<VehicleLocation?> = _current
+    private var lastLogAtMs = 0L
+    private var lastLogSource = ""
+
+    /** One time-correlated sample per second, embedded in FT's normal manual ZIP report. */
+    private fun note(sample: VehicleLocation) {
+        val now = sample.receivedAtMs
+        if (sample.source == lastLogSource && now - lastLogAtMs < 1_000L) return
+        lastLogAtMs = now
+        lastLogSource = sample.source
+        fun dec(value: Double?) = value?.let { String.format(java.util.Locale.US, "%.7f", it) } ?: "NA"
+        DiagLog.i("VehicleGPS", "protocol=${sample.source} timeMs=$now " +
+            "latitude=${dec(sample.latitude)} longitude=${dec(sample.longitude)} " +
+            "rawLat=${sample.rawLatitude ?: "NA"} rawLon=${sample.rawLongitude ?: "NA"} " +
+            "speedRaw=${sample.speedRaw ?: "NA"} headingRaw=${sample.headingRaw ?: "NA"} " +
+            "satUsed=${sample.satellitesUsed ?: "NA"} satVisible=${sample.satellitesVisible ?: "NA"} " +
+            "carTimestamp=${sample.deviceTimestampRaw ?: "NA"} " +
+            "positionAgeMs=${if (sample.positionAtMs == 0L) -1 else now - sample.positionAtMs} " +
+            "units=${sample.coordinatesUnit}/${sample.speedUnit}/${sample.headingUnit}")
+    }
 
     @Synchronized fun publish(location: VehicleLocation) {
         require(location.source == "ICCOA" || location.source == "BAIDU")
         _current.value = location
+        note(location)
     }
 
     @Synchronized fun updateBaiduSpeed(rawSpeed: Long, deviceTimestamp: Long? = null) {
@@ -52,6 +72,7 @@ object VehicleTelemetry {
             receivedAtMs = System.currentTimeMillis(), speedRaw = rawSpeed,
             deviceTimestampRaw = deviceTimestamp ?: old?.deviceTimestampRaw
         )
+        _current.value?.let(::note)
     }
 
     @Synchronized fun updateIccoaSpeed(rawSpeed: Long) {
@@ -61,6 +82,7 @@ object VehicleTelemetry {
         _current.value = (old ?: VehicleLocation("ICCOA", now, positionAtMs = 0L)).copy(
             receivedAtMs = now, speedRaw = rawSpeed
         )
+        _current.value?.let(::note)
     }
 
     @Synchronized fun clear(source: String) {
