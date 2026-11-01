@@ -20,14 +20,14 @@ internal data class MirrorTouchMap(
     val valid: Boolean get() = carWidth > 0 && carHeight > 0 &&
         outputWidth > 0 && outputHeight > 0 && phoneWidth > 0 && phoneHeight > 0
 
-    fun map(x: Int, y: Int): Pair<Float, Float>? {
+    fun map(x: Int, y: Int, clipToBounds: Boolean = false): Pair<Float, Float>? {
         if (!valid) return null
         val scale = min(carWidth.toDouble() / outputWidth, carHeight.toDouble() / outputHeight)
         val visibleWidth = outputWidth * scale
         val visibleHeight = outputHeight * scale
         val left = (carWidth - visibleWidth) / 2.0
         val top = (carHeight - visibleHeight) / 2.0
-        if (x < left || x >= left + visibleWidth || y < top || y >= top + visibleHeight) return null
+        if (!clipToBounds && (x < left || x >= left + visibleWidth || y < top || y >= top + visibleHeight)) return null
         return (((x - left) / visibleWidth * phoneWidth).coerceIn(0.0, (phoneWidth - 1).toDouble())).toFloat() to
             (((y - top) / visibleHeight * phoneHeight).coerceIn(0.0, (phoneHeight - 1).toDouble())).toFloat()
     }
