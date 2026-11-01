@@ -3,6 +3,7 @@ package app.ft.projection
 import android.content.Context
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
+import android.media.MediaCodec
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -19,6 +20,7 @@ class CarDisplay(private val context: Context) {
     private val tag = "Display"
     private val main = Handler(Looper.getMainLooper())
     private var encoder: SurfaceEncoder? = null
+    private var sessionEpoch = 0L
     private var gate: FrameGate? = null
     private var virtualDisplay: VirtualDisplay? = null
     private var presentation: CarPresentation? = null
@@ -59,9 +61,37 @@ class CarDisplay(private val context: Context) {
         onFrame: (ByteArray, Boolean) -> Unit,
         onTimedFrame: ((ByteArray, Boolean, Long) -> Unit)? = null,
         onFailure: ((Throwable) -> Unit)? = null,
+        codecAttempt: Int = 0,
         content: @Composable () -> Unit
     ) {
         stop()
+        val epoch = sessionEpoch
+        // An encoder may die only after the first real EGL frame was submitted.
+        // Retry a bounded compatible AVC candidate without tearing down RTSP or audio.
+        val codecFailure: (Throwable) -> Unit = { error ->
+            main.post {
+                synchronized(this@CarDisplay) {
+                    if (epoch != sessionEpoch) return@synchronized
+                    val failed = encoder
+                    val next = (failed?.selectedCandidateIndex ?: -1) + 1
+                    if (error is MediaCodec.CodecException && failed != null &&
+                        next in 1 until failed.candidateCount
+                    ) {
+                        DiagLog.w(tag, "H264 ASYNC_RETRY candidate=${next + 1}/${failed.candidateCount} format=${plan.streamWidth}x${plan.streamHeight}@${plan.fps}")
+                        runCatching {
+                            start(plan, onConfig, onFrame, onTimedFrame, onFailure, next, content)
+                        }.onFailure { retryError ->
+                            stop()
+                            DiagLog.e(tag, "H264 retry display rebind failed", retryError)
+                            onFailure?.invoke(retryError)
+                        }
+                    } else {
+                        DiagLog.e(tag, "H264 FINAL_FAILURE candidate=${(failed?.selectedCandidateIndex ?: -1) + 1} total=${failed?.candidateCount ?: 0}", error)
+                        onFailure?.invoke(error)
+                    }
+                }
+            }
+        }
         val fps = plan.fps
         val savePower = FTApp.instance.prefs.encoderSavePower
         width = plan.contentWidth
@@ -69,7 +99,7 @@ class CarDisplay(private val context: Context) {
         streamWidth = plan.streamWidth
         streamHeight = plan.streamHeight
         frameIntervalMs = (1000L / fps.coerceIn(1, 120)).coerceAtLeast(8L)
-        var enc = SurfaceEncoder(streamWidth, streamHeight, fps, plan.bitrate, plan.qpFloor, onConfig, onFrame, gated = true, onTimedFrame = onTimedFrame, savePower = savePower, constantBitrate = plan.constantBitrate, onFailure = { error -> main.post { onFailure?.invoke(error) } })
+        var enc = SurfaceEncoder(streamWidth, streamHeight, fps, plan.bitrate, plan.qpFloor, onConfig, onFrame, gated = true, onTimedFrame = onTimedFrame, savePower = savePower, constantBitrate = plan.constantBitrate, onFailure = codecFailure, startCandidateIndex = codecAttempt)
         encoder = enc
         enc.start()
         val g = FrameGate(width, height, streamWidth, streamHeight, enc.surface ?: throw IllegalStateException("no encoder surface"), preserveAspect = plan.preserveAspect)
@@ -82,7 +112,7 @@ class CarDisplay(private val context: Context) {
             width = streamWidth
             height = streamHeight
             DiagLog.w(tag, "drawing straight at ${streamWidth}x$streamHeight, the car stretches it to fill its screen")
-            enc = SurfaceEncoder(streamWidth, streamHeight, fps, plan.bitrate, plan.qpFloor, onConfig, onFrame, onTimedFrame = onTimedFrame, savePower = savePower, constantBitrate = plan.constantBitrate, onFailure = { error -> main.post { onFailure?.invoke(error) } })
+            enc = SurfaceEncoder(streamWidth, streamHeight, fps, plan.bitrate, plan.qpFloor, onConfig, onFrame, onTimedFrame = onTimedFrame, savePower = savePower, constantBitrate = plan.constantBitrate, onFailure = codecFailure, startCandidateIndex = codecAttempt)
             encoder = enc
             enc.start()
             enc.surface ?: throw IllegalStateException("no encoder surface")
@@ -268,6 +298,7 @@ class CarDisplay(private val context: Context) {
 
     @Synchronized
     fun stop() {
+        sessionEpoch++
         video = null
         onVideoChanged?.invoke(null)
         watch.stop()
@@ -282,9 +313,12 @@ class CarDisplay(private val context: Context) {
         virtualDisplay = null
         // Presentation lifecycle and display release must stay ordered on Main.
         // Holding the same monitor during show prevents stop from losing its owner.
-        if (p != null || vd != null) main.post {
-            runCatching { p?.destroy() }
-            runCatching { vd?.release() }
+        if (p != null || vd != null) {
+            val release = {
+                runCatching { p?.destroy() }
+                runCatching { vd?.release() }
+            }
+            if (Looper.myLooper() == Looper.getMainLooper()) release() else main.post { release() }
         }
         _active.value = false
         runCatching { gate?.stop() }
