@@ -38,7 +38,9 @@ android {
             signingConfig = signingConfigs.getByName("release")
         }
         debug {
-            signingConfig = signingConfigs.getByName("release")
+            // XA60 experimental APK uses an isolated Android debug key.
+            // Never reuse the upstream FT author's private release signing identity.
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
