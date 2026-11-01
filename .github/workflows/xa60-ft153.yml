@@ -84,8 +84,8 @@ jobs:
           pw_file.write_text(password)
           pw_file.chmod(0o600)
           props = pathlib.Path("ft-xa60-signing.properties")
-          props.write_text("storeFile=.ft-xa60/ft-xa60-owner.p12\\nstorePassword="+password+
-                          "\\nkeyAlias=openivi_ft_xa60\\nkeyPassword="+password+"\\n")
+          props.write_text("storeFile=.ft-xa60/ft-xa60-owner.p12\nstorePassword="+password+
+                          "\nkeyAlias=openivi_ft_xa60\nkeyPassword="+password+"\n")
           props.chmod(0o600)
           PY
           actual=$(keytool -exportcert -alias openivi_ft_xa60 -keystore .ft-xa60/ft-xa60-owner.p12 -storepass:file .ft-xa60/password.txt | sha256sum | awk '{print $1}')
