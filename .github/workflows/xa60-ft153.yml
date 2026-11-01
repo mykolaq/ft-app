@@ -110,23 +110,27 @@ jobs:
           kotlin.incremental=false
           EOF
 
-      - name: Test and compile signed Android APK
+      - name: Test and compile non-debuggable release APK
         shell: bash
         run: |
           set -euo pipefail
           chmod +x gradlew
-          ./gradlew --no-daemon --max-workers=1 testDebugUnitTest assembleDebug --stacktrace
+          ./gradlew --no-daemon --max-workers=1 testDebugUnitTest lintVitalRelease assembleRelease --stacktrace
 
       - name: Validate APK and stage copy locally
         shell: bash
         run: |
           set -euo pipefail
-          apk="app/build/outputs/apk/debug/app-debug.apk"
+          apk="app/build/outputs/apk/release/app-release.apk"
           test -s "$apk"
           bt="$ANDROID_HOME/build-tools/36.0.0"
           "$bt/apksigner" verify --verbose --print-certs "$apk" | tee "$RUNNER_TEMP/ft-apksigner.txt"
           grep -iq "$FT_XA60_PINNED_SIGNER_SHA256" "$RUNNER_TEMP/ft-apksigner.txt"
           "$bt/aapt" dump badging "$apk" | grep -m1 "^package: name='app.ft.xa60' versionCode='153'"
+          if "$bt/aapt" dump badging "$apk" | grep -q '^application-debuggable'; then
+            echo "REFUSE: APK is debuggable, not a user release" >&2
+            exit 1
+          fi
           sha256sum "$apk" | tee "$RUNNER_TEMP/ft-sha256.txt"
           dest="$RUNNER_TEMP/ft-xa60/$GITHUB_SHA/$GITHUB_RUN_ID"
           test ! -e "$dest"
