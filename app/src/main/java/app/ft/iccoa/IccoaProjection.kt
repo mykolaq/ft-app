@@ -30,6 +30,7 @@ import app.ft.projection.CarTouch
 import app.ft.projection.CarTouchZones
 import app.ft.projection.CarTouchCalibration
 import app.ft.projection.MirrorSink
+import app.ft.projection.MirrorTouchMap
 import app.ft.projection.PhoneMirror
 import app.ft.projection.VideoPlan
 import app.ft.ui.car.CarScreen
@@ -81,12 +82,13 @@ class IccoaProjection(
     private var soundDeclined = false
     private var ownsAa = false
     private var savedRotation: Pair<Int, Int>? = null
+    private var capturedSize: Pair<Int, Int>? = null
     private val displayManager = context.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
     private val rotationListener = object : DisplayManager.DisplayListener {
         override fun onDisplayAdded(displayId: Int) = Unit
         override fun onDisplayRemoved(displayId: Int) = Unit
         override fun onDisplayChanged(displayId: Int) {
-            if (displayId == Display.DEFAULT_DISPLAY && mirror.ready) {
+            if (displayId == Display.DEFAULT_DISPLAY && mirror.ready && capturedSize == null) {
                 val (w, h) = phoneSize()
                 if (mirror.resize(w, h)) MirrorSink.surface.value?.let { mirror.show(it) }
             }
@@ -195,15 +197,18 @@ class IccoaProjection(
             }
             state.value.mirroring -> {
                 if (!mirror.active || t.action !in 0..2) return@onMain
-                val w = display.width.toFloat().coerceAtLeast(1f)
-                val h = display.height.toFloat().coerceAtLeast(1f)
-                val scale = minOf(w / mirror.width.coerceAtLeast(1), h / mirror.height.coerceAtLeast(1))
-                val dx = (w - mirror.width * scale) / 2
-                val dy = (h - mirror.height * scale) / 2
-                if (t.action == CarTouch.DOWN) touchBeside = x < dx || x >= w - dx || y < dy || y >= h - dy
-                if (!touchBeside) FTTouchService.instance?.inject(t.action,
-                    ((x - dx) / scale).coerceIn(0f, mirror.width - 1f),
-                    ((y - dy) / scale).coerceIn(0f, mirror.height - 1f))
+                val frame = MirrorSink.frame.value
+                val viewport = MirrorTouchMap(
+                    display.width, display.height, frame.width, frame.height,
+                    mirror.width, mirror.height
+                )
+                val mapped = viewport.map(x, mappedY, clipToBounds = t.action != CarTouch.DOWN)
+                if (t.action == CarTouch.DOWN) {
+                    touchBeside = mapped == null
+                    DiagLog.i("Mirror", "touch DOWN car=$x,$mappedY phone=${mapped?.first},${mapped?.second} " +
+                        "source=${mirror.width}x${mirror.height} surface=${frame.width}x${frame.height}")
+                }
+                if (!touchBeside && mapped != null) FTTouchService.instance?.inject(t.action, mapped.first, mapped.second)
             }
             else -> display.dispatchTouch(t)
         }
@@ -268,6 +273,14 @@ class IccoaProjection(
             val mp = manager.getMediaProjection(code, data) ?: error("MediaProjection is unavailable")
             projection = mp
             mp.registerCallback(object : MediaProjection.Callback() {
+                override fun onCapturedContentResize(width: Int, height: Int) {
+                    onMain {
+                        if (projection !== mp || width < 1 || height < 1) return@onMain
+                        capturedSize = width to height
+                        DiagLog.i("Mirror", "actual Android capture content size=${width}x${height}")
+                        if (mirror.resize(width, height)) MirrorSink.surface.value?.let { mirror.show(it) }
+                    }
+                }
                 override fun onStop() {
                     if (projection !== mp) return
                     releaseProjection(stop = false)
@@ -319,7 +332,7 @@ class IccoaProjection(
         }
         // Reuse one display per consent token. Recreating it requires new consent on Android 14+.
         if (!mirror.ready) {
-            val (w, h) = phoneSize()
+            val (w, h) = capturedSize ?: phoneSize()
             if (!mirror.open(mp, w, h, context.resources.displayMetrics.densityDpi, false, display.width, display.height)) {
                 releaseProjection()
                 return
@@ -445,6 +458,7 @@ class IccoaProjection(
         mirrorJob = null
         audio.stop()
         mirror.close()
+        capturedSize = null
         val mp = projection
         projection = null
         if (mp != null) {
