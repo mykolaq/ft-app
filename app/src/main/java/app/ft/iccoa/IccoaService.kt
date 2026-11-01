@@ -58,6 +58,25 @@ class IccoaService : Service() {
     private var lastVideoConfig: IccoaVideoConfig? = null
     private val audioPlayerState = IccoaAudioPlayerState()
     private val audioStateRetry = Runnable { flushAudioState() }
+    private var gpsFrameCount = 0L
+    private var gpsFixCount = 0L
+    private var lastCarGps: IccoaGpsFix? = null
+    private fun onSensorMessage(method: Int, body: ByteArray) {
+        if (method != IccoaGpsWire.GPS_METHOD) return
+        gpsFrameCount++
+        val fix = IccoaGpsWire.decode(body)
+        if (fix != null) {
+            gpsFixCount++
+            lastCarGps = fix
+        }
+        if (gpsFrameCount <= 3 || gpsFrameCount and (gpsFrameCount - 1) == 0L) {
+            DiagLog.i("ICCOA", "SENSOR GPS received=$gpsFrameCount valid=$gpsFixCount " +
+                "payloadBytes=${body.size} fixPresent=${fix != null} " +
+                "satellitesUsed=${fix?.satellitesUsed ?: -1} " +
+                "satellitesVisible=${fix?.satellitesVisible ?: -1}")
+        }
+    }
+
     private var configScheduled = false
     private val requestConfig = object : Runnable {
         override fun run() {
@@ -173,7 +192,10 @@ class IccoaService : Service() {
             onMessage = { category, method, body ->
                 if (category == 4) {
                     if (generation == token) carMicrophone.receive(method, body)
-                } else current { control(category, method, body) }
+                } else current {
+                    if (category == IccoaGpsWire.SENSOR_CATEGORY) onSensorMessage(method, body)
+                    else control(category, method, body)
+                }
             },
             onClosed = { reason -> current { connectionFailed(reason) } })
         session = connection
