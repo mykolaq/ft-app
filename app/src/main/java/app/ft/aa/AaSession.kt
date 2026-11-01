@@ -333,7 +333,7 @@ class AaSession(
                 val packet = AaCarGps.event(car, now)
                 if (packet != null && car != null && car.positionAtMs != lastPositionAt) {
                     if (unavailable) {
-                        sendEnc(AaProtocol.CH_SENSOR, 0x8004, AaCarGps.sensorError(1))
+                        sendEnc(AaProtocol.CH_SENSOR, AaProtocol.SENSOR_ERROR, AaCarGps.sensorError(1))
                         DiagLog.i(tag, "car GPS to AA: recovered")
                     }
                     unavailable = false
@@ -345,7 +345,7 @@ class AaSession(
                         DiagLog.i(tag, "car GPS to AA: $sent valid fixes sent; source=ICCOA")
                 } else if (!unavailable && now - lastSeenAt >= 3_500L) {
                     unavailable = true
-                    sendEnc(AaProtocol.CH_SENSOR, 0x8004, AaCarGps.sensorError(2))
+                    sendEnc(AaProtocol.CH_SENSOR, AaProtocol.SENSOR_ERROR, AaCarGps.sensorError(2))
                     DiagLog.w(tag, "car GPS to AA: stale/unavailable, phone fallback requested")
                 }
                 delay(interval)
