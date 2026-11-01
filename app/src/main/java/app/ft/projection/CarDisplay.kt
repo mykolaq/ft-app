@@ -102,7 +102,7 @@ class CarDisplay(private val context: Context) {
         var enc = SurfaceEncoder(streamWidth, streamHeight, fps, plan.bitrate, plan.qpFloor, onConfig, onFrame, gated = true, onTimedFrame = onTimedFrame, savePower = savePower, constantBitrate = plan.constantBitrate, onFailure = codecFailure, startCandidateIndex = codecAttempt)
         encoder = enc
         enc.start()
-        val g = FrameGate(width, height, streamWidth, streamHeight, enc.surface ?: throw IllegalStateException("no encoder surface"), preserveAspect = plan.preserveAspect)
+        val g = FrameGate(width, height, streamWidth, streamHeight, enc.surface ?: throw IllegalStateException("no encoder surface"), preserveAspect = plan.preserveAspect, onFailure = codecFailure)
         val surface = if (g.start(fps)) {
             gate = g
             g.input ?: throw IllegalStateException("no frame gate surface")
