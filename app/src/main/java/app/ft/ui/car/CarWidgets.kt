@@ -91,8 +91,10 @@ private fun SpeedChip(mph: Boolean, preview: Boolean, vehicle: VehicleLocation?)
     if (speed < 0f) return
     val shown = if (mph) speed * 0.621371f else speed
     val source = if (carSpeed != null) (vehicle?.source ?: "CAR") else "PHONE"
+    val raw = vehicle?.speedRaw
+    val suffix = if (carSpeed == null && raw != null) " · ${vehicle?.source} raw=$raw" else " · $source"
     Chip(CarIcons.Speed, "${shown.roundToInt()}",
-        "${stringResource(if (mph) R.string.widget_mph else R.string.widget_kmh)} · $source")
+        "${stringResource(if (mph) R.string.widget_mph else R.string.widget_kmh)}$suffix")
 }
 
 @Composable
