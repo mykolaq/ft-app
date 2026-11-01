@@ -10,23 +10,21 @@ permissions:
 
 concurrency:
   group: ft-xa60-build153
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build:
-    runs-on: [self-hosted, linux, x64, openivi-ci]
+    runs-on: ubuntu-latest
     timeout-minutes: 70
     env:
-      GRADLE_USER_HOME: /srv/openivi-ci/.gradle-ft-xa60
+      GRADLE_USER_HOME: /home/runner/.gradle-ft-xa60
       GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Verify existing non-root OpenIVI runner
+      - name: Verify isolated hosted runner
         shell: bash
         run: |
           set -euo pipefail
-          test "$(id -un)" = "openivi-ci"
           test "$(id -u)" != "0"
-          if sudo -n true >/dev/null 2>&1; then echo "Unexpected passwordless sudo" >&2; exit 1; fi
           df -h /
           free -h
 
@@ -91,7 +89,7 @@ jobs:
           "$bt/apksigner" verify --verbose --print-certs "$apk" | tee "$RUNNER_TEMP/ft-apksigner.txt"
           "$bt/aapt" dump badging "$apk" | grep -m1 "^package: name='app.ft' versionCode='153'"
           sha256sum "$apk" | tee "$RUNNER_TEMP/ft-sha256.txt"
-          dest="/srv/openivi-ci/artifact-spool/ft-xa60/$GITHUB_SHA/$GITHUB_RUN_ID"
+          dest="$RUNNER_TEMP/ft-xa60/$GITHUB_SHA/$GITHUB_RUN_ID"
           test ! -e "$dest"
           mkdir -p "$dest"
           cp -a "$apk" "$dest/"
