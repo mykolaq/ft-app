@@ -174,7 +174,7 @@ class IccoaProjection(
         val (x2, y2) = if (applyCalibration && second.first >= 0 && second.second >= 0)
             CarTouchCalibration.correct(context, second.first, second.second, display.width, display.height) else second
         val t = raw.copy(x = x, y = mappedY, x2 = x2, y2 = y2)
-        if (t.action == CarTouch.DOWN) touchFt = CarTouchZones.hit(x, y)
+        if (t.action == CarTouch.DOWN) touchFt = CarTouchZones.hit(x, mappedY)
         if (touchFt) {
             if (t.action == CarTouch.DOWN) DiagLog.i("ICCOA", "touch route=FT content=$x,$y")
             display.dispatchTouch(t)
