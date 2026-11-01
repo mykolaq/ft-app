@@ -25,7 +25,8 @@ class FrameGate(
     private val inHeight: Int,
     private val width: Int,
     private val height: Int,
-    private val output: Surface
+    private val output: Surface,
+    private val preserveAspect: Boolean = false
 ) {
     private val tag = "Gate"
     private var thread: HandlerThread? = null
@@ -40,7 +41,13 @@ class FrameGate(
     private var coord = -1
     private var transform = -1
     private val matrix = FloatArray(16)
-    private val quad = floats(-1f, -1f, 1f, -1f, -1f, 1f, 1f, 1f)
+    private val quad = run {
+        // Letterbox without cropping or distorting the incoming presentation.
+        val scale = if (preserveAspect) minOf(width.toFloat() / inWidth, height.toFloat() / inHeight) else 0f
+        val x = if (preserveAspect) inWidth * scale / width else 1f
+        val y = if (preserveAspect) inHeight * scale / height else 1f
+        floats(-x, -y, x, -y, -x, y, x, y)
+    }
     private val uv = floats(0f, 0f, 1f, 0f, 0f, 1f, 1f, 1f)
     private var ready = false
     private var fresh = false
@@ -195,6 +202,10 @@ class FrameGate(
         try {
             st.getTransformMatrix(matrix)
             GLES20.glViewport(0, 0, width, height)
+            if (preserveAspect) {
+                GLES20.glClearColor(0f, 0f, 0f, 1f)
+                GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+            }
             GLES20.glUseProgram(program)
             GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
             GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, textureName)
