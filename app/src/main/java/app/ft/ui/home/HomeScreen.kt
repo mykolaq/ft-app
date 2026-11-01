@@ -95,6 +95,7 @@ import app.ft.carlife.CarLifeService
 import app.ft.core.CarConnection
 import app.ft.core.CarProtocol
 import app.ft.iccoa.IccoaService
+import app.ft.projection.CarTouchCalibration
 import app.ft.projection.CarControls
 import app.ft.ui.components.rememberCarProtocol
 import app.ft.ui.components.CarProtocolSetting
@@ -115,6 +116,7 @@ fun HomeScreen(pad: PaddingValues, onOpenAccessibility: () -> Unit, onOpenOverla
     val iccoaActions = if (iccoa) rememberIccoaConnectionActions() else null
     val iccoaState by IccoaService.state.collectAsState()
     val screenState by CarControls.state.collectAsState()
+    val touchCalibration by CarTouchCalibration.state.collectAsState()
     val car by CarLifeService.state.collectAsState()
     val disconnectHelp by AaHeadUnitService.disconnectHelpPending.collectAsState()
     var systemHelp by rememberSaveable { mutableStateOf(false) }
@@ -199,6 +201,20 @@ fun HomeScreen(pad: PaddingValues, onOpenAccessibility: () -> Unit, onOpenOverla
                 if (!want) CarConnection.switchOff(context)
                 else if (iccoaActions != null) iccoaActions.start(false)
                 else CarConnection.switchOn(context)
+            }
+        }
+
+        if (iccoa && projecting && !screenState.aaOverlay && !screenState.mirroring) item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Калибровка экрана Toyota", style = MaterialTheme.typography.titleMedium)
+                    Text(if (touchCalibration.step > 0)
+                        "На экране автомобиля нажмите точно в центр зелёного круга. Точка ${touchCalibration.step} из 2."
+                        else "Запуск с телефона: на экране автомобиля появятся две контрольные точки.")
+                    FilledTonalButton(onClick = { IccoaService.calibrateTouch(context) }) {
+                        Text(if (touchCalibration.step > 0) "Начать заново" else "Калибровать касания на ГУ")
+                    }
+                }
             }
         }
 
