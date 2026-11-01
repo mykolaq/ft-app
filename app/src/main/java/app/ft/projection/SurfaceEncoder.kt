@@ -25,12 +25,15 @@ class SurfaceEncoder(
     private val gated: Boolean = false,
     private val onTimedFrame: ((ByteArray, Boolean, Long) -> Unit)? = null,
     private val savePower: Boolean = false,
-    private val constantBitrate: Boolean = false
+    private val constantBitrate: Boolean = false,
+    private val onFailure: ((Throwable) -> Unit)? = null
 ) {
     private val tag = "Encoder"
     private val fps = fps.coerceIn(1, 60)
     private val bitrate = bitrate.coerceIn(300_000, 40_000_000)
     private val running = AtomicBoolean(false)
+    private val asyncFailed = AtomicBoolean(false)
+    private val firstKeyFrameLogged = AtomicBoolean(false)
     private var thread: HandlerThread? = null
     private var handler: Handler? = null
     private var codec: MediaCodec? = null
@@ -40,6 +43,8 @@ class SurfaceEncoder(
 
     fun start() {
         if (!running.compareAndSet(false, true)) return
+        asyncFailed.set(false)
+        firstKeyFrameLogged.set(false)
         val t = HandlerThread("FT-Encoder").also { it.start() }
         thread = t
         val h = Handler(t.looper)
@@ -91,11 +96,14 @@ class SurfaceEncoder(
                 .filter { it.isEncoder && it.supportedTypes.any { t -> t.equals(MediaFormat.MIMETYPE_VIDEO_AVC, true) } }
         }.getOrDefault(emptyList())
         val fits = all.filter { info ->
-            runCatching { info.getCapabilitiesForType(MediaFormat.MIMETYPE_VIDEO_AVC).videoCapabilities.isSizeSupported(width, height) }.getOrDefault(true)
-        }.ifEmpty { all }
+            runCatching {
+                info.getCapabilitiesForType(MediaFormat.MIMETYPE_VIDEO_AVC).videoCapabilities
+                    .isSizeAndRateSupported(width, height, fps.toDouble())
+            }.getOrDefault(false)
+        }
+        if (fits.isEmpty()) DiagLog.w(tag, "no encoder advertises ${width}x${height}@${fps}")
         val ordered = fits.sortedBy { if (it.isHardwareAccelerated) 0 else 1 }.map { it.name }
-        val default = runCatching { MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC).let { c -> c.name.also { c.release() } } }.getOrNull()
-        return (listOfNotNull(default) + ordered).distinct()
+        return ordered.distinct()
     }
 
     private fun base(): MediaFormat = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height).apply {
@@ -158,7 +166,9 @@ class SurfaceEncoder(
                         lateNoted = SystemClock.elapsedRealtime()
                         DiagLog.w(tag, "a picture came out of the encoder $late ms after it was drawn")
                     }
-                    if (running.get()) {
+                    if (key && firstKeyFrameLogged.compareAndSet(false, true))
+                        DiagLog.i(tag, "first H264 keyframe bytes=${frame.size} ptsUs=${info.presentationTimeUs}")
+                    if (running.get() && !asyncFailed.get()) {
                         onTimedFrame?.invoke(frame, key, info.presentationTimeUs) ?: onFrame(frame, key)
                     }
                 } catch (t: Throwable) {
@@ -169,7 +179,8 @@ class SurfaceEncoder(
             }
 
             override fun onError(codec: MediaCodec, e: MediaCodec.CodecException) {
-                DiagLog.e(tag, "codec error", e)
+                DiagLog.e(tag, "codec error; terminate projection and renegotiate", e)
+                if (asyncFailed.compareAndSet(false, true)) onFailure?.invoke(e)
             }
 
             override fun onOutputFormatChanged(codec: MediaCodec, format: MediaFormat) {
@@ -182,7 +193,10 @@ class SurfaceEncoder(
                         out.write(bytes)
                     }
                 }
-                if (out.size() > 0) onConfig(out.toByteArray())
+                if (out.size() > 0) {
+                    DiagLog.i(tag, "H264 SPS/PPS codec config bytes=${out.size()}")
+                    onConfig(out.toByteArray())
+                }
                 DiagLog.i(tag, "format ${format.getInteger(MediaFormat.KEY_WIDTH)}x${format.getInteger(MediaFormat.KEY_HEIGHT)}")
             }
         }
