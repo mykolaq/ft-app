@@ -40,10 +40,12 @@ internal object CarTouchCalibration {
     private val _state = MutableStateFlow(TouchCalibrationState())
     val state: StateFlow<TouchCalibrationState> = _state
     private var measuredLeft = -1
+    private var swallowUntilUp = false
 
     fun begin(width: Int, height: Int) {
         if (width <= 0 || height <= 0) return
         measuredLeft = -1
+        swallowUntilUp = false
         _state.value = TouchCalibrationState(step = 1, width = width, height = height)
     }
 
@@ -55,8 +57,16 @@ internal object CarTouchCalibration {
     /** Intercept every UIBC touch while calibration targets are displayed. */
     fun consume(context: Context, action: Int, x: Int, y: Int): Boolean {
         val c = _state.value
-        if (c.step !in 1..2) return false
-        if (action != CarTouch.DOWN) return true
+        if (c.step !in 1..2) {
+            if (!swallowUntilUp) return false
+            if (action == CarTouch.UP) swallowUntilUp = false
+            return true
+        }
+        if (action != CarTouch.DOWN) {
+            if (action == CarTouch.UP) swallowUntilUp = false
+            return true
+        }
+        swallowUntilUp = true
         // Upper-left corner offers a cancellation gesture without relying on hit testing.
         if (x < c.width / 9 && y < c.height / 6) {
             cancel()
