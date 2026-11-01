@@ -12,12 +12,16 @@ class IccoaAudioPlayerStateTest {
         assertTrue(player.pending)
         assertEquals(0, player.flush { bytes ->
             val body = ProtoReader(bytes)
-            assertEquals(setOf(1, 2, 3, 4, 6), body.fields.keys)
+            assertEquals(setOf(1, 2, 3, 4, 5, 6), body.fields.keys)
             assertEquals(16, body.int(1))
             assertEquals(0, body.int(2))
             assertEquals(48000, body.int(3))
             assertEquals(2, body.int(4))
+            assertEquals(2, body.int(5)) // UCar encoding_format PCM_16BIT
             assertEquals("audio/mp4a-latm", body.string(6))
+            assertTrue(bytes.toList().zipWithNext().any { (a, b) ->
+                (a.toInt() and 0xff) == 0x28 && (b.toInt() and 0xff) == 0x02
+            })
             true
         })
         assertFalse(player.pending)
