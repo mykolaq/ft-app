@@ -168,7 +168,7 @@ class IccoaProjection(
         if (isFtUi && CarTouchCalibration.consume(context, raw.action, initialX, y)) return@onMain
         // Toyota's UIBC X geometry also affects phone mirroring. AA owns a separate
         // viewport/protocol: keep it uncalibrated until physically validated.
-        val applyCalibration = !state.value.aaOverlay
+        val applyCalibration = true
         val (x, mappedY) = if (applyCalibration)
             CarTouchCalibration.correct(context, initialX, y, display.width, display.height) else initialX to y
         val (x2, y2) = if (applyCalibration && second.first >= 0 && second.second >= 0)
