@@ -41,6 +41,9 @@ data class IccoaState(
 class IccoaService : Service() {
     private val main = Handler(Looper.getMainLooper())
     private val lifecycle = Any()
+    private val rememberedCar by lazy { IccoaRememberedCar(this) }
+    private var pendingCar: IccoaPeer? = null
+    private var autoConnectAttempted = false
     @Volatile private var generation = 0
     private var discovery: IccoaDiscovery? = null
     @Volatile private var session: IccoaSession? = null
@@ -98,7 +101,10 @@ class IccoaService : Service() {
         getSystemService(NotificationManager::class.java).createNotificationChannel(
             NotificationChannel(CHANNEL, "ICCOA Carlink", NotificationManager.IMPORTANCE_LOW)
         )
-        discovery = IccoaDiscovery(this) { result -> _state.update { it.copy(discovery = result) } }
+        discovery = IccoaDiscovery(this) { result ->
+            _state.update { it.copy(discovery = result) }
+            maybeAutoConnect(result)
+        }
         projection = IccoaProjection(this, ::promoteProjection, {
             session?.sendControl(5, byteArrayOf())
         }, { pcm -> media?.audio(pcm) }, onFailure = ::connectionFailed)
@@ -139,13 +145,25 @@ class IccoaService : Service() {
             }
             DISCONNECT -> { endConnection(); _state.update { it.copy(status = "Disconnected") } }
             INSPECT -> if (!_state.value.connecting && !_state.value.connected) intent.getStringExtra("address")?.let { discovery?.inspect(it) }
-            SCAN -> { endConnection(); _state.update { it.copy(status = "") }; discovery?.start() }
+            SCAN -> { endConnection(); autoConnectAttempted = false
+                _state.update { it.copy(status = "") }; discovery?.start() }
             else -> if (!wasRunning) discovery?.start()
         }
         return START_NOT_STICKY
     }
 
+    private fun maybeAutoConnect(result: IccoaDiscoveryState) {
+        val prefs = FTApp.instance.prefs
+        if (!prefs.autoConnect || prefs.carProtocol != CarProtocol.ICCOA ||
+            autoConnectAttempted || _state.value.connecting || _state.value.connected) return
+        val car = rememberedCar.select(result.peers, result.phase == IccoaPhase.SCAN_COMPLETE) ?: return
+        autoConnectAttempted = true
+        DiagLog.i("ICCOA", "Auto-select remembered vehicle; BLE address may rotate; no automatic PIN submission")
+        connectTo(car.address)
+    }
+
     private fun connectTo(address: String) {
+        pendingCar = _state.value.discovery.peers.singleOrNull { it.address.equals(address, ignoreCase = true) }
         endConnection()
         discovery?.stop()
         val token = generation
@@ -220,6 +238,9 @@ class IccoaService : Service() {
         if (!configScheduled) {
             configScheduled = true
             main.postDelayed(requestConfig, 3_000)
+        }
+        pendingCar?.let { car ->
+            if (rememberedCar.remember(car)) DiagLog.i("ICCOA", "Authenticated vehicle selection remembered for next connection")
         }
         _state.update { it.copy(connecting = false, connected = true, pinRequired = false,
             status = "ICCOA linked · awaiting H.264 video · ${plan.streamWidth}×${plan.streamHeight} · ${plan.fps} fps") }
