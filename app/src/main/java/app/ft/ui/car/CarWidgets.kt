@@ -56,8 +56,8 @@ fun CarWidgets(style: CarStyle, modifier: Modifier = Modifier, preview: Boolean 
                 CarStyle.WIDGET_WEATHER -> WeatherChip(style.fahrenheit, preview)
                 CarStyle.WIDGET_BATTERY -> BatteryChip(preview)
                 CarStyle.WIDGET_SPEED -> SpeedChip(style.mph, preview, freshVehicle)
-                CarStyle.WIDGET_COORDINATES -> CoordinatesChip(freshVehicle, preview)
-                CarStyle.WIDGET_COURSE -> CourseChip(freshVehicle, preview)
+                CarStyle.WIDGET_COORDINATES -> CoordinatesChip(freshVehicle, preview, now)
+                CarStyle.WIDGET_COURSE -> CourseChip(freshVehicle, preview, now)
                 CarStyle.WIDGET_CALENDAR -> EventChip(style.clock24, preview)
             }
         }
@@ -96,31 +96,35 @@ private fun SpeedChip(mph: Boolean, preview: Boolean, vehicle: VehicleLocation?)
 }
 
 @Composable
-private fun CoordinatesChip(vehicle: VehicleLocation?, preview: Boolean) {
-    if (vehicle == null && !preview) return
-    val latitude = vehicle?.displayLatitude
-    val longitude = vehicle?.displayLongitude
+private fun CoordinatesChip(vehicle: VehicleLocation?, preview: Boolean, now: Long) {
+    val fix = vehicle?.takeIf { it.positionFresh(now) }
+    val latitude = fix?.displayLatitude
+    val longitude = fix?.displayLongitude
     val value = when {
         latitude != null && longitude != null -> String.format(Locale.US, "%.5f, %.5f", latitude, longitude)
-        vehicle?.rawLatitude != null && vehicle.rawLongitude != null ->
-            "${vehicle.rawLatitude}, ${vehicle.rawLongitude}"
+        fix?.rawLatitude != null && fix.rawLongitude != null ->
+            "${fix.rawLatitude}, ${fix.rawLongitude}"
         else -> "—"
     }
-    val detail = if (latitude != null) "${vehicle?.source ?: ""} · datum?" else "${vehicle?.source ?: "CAR"} · raw"
+    val detail = if (latitude != null) "${fix?.source ?: ""} · datum?"
+        else if (fix?.rawLatitude != null) "${fix.source} · raw"
+        else "${vehicle?.source ?: "CAR"} · NO FIX"
     Chip(CarIcons.Map, value, detail, wide = true)
 }
 
 @Composable
-private fun CourseChip(vehicle: VehicleLocation?, preview: Boolean) {
-    if (vehicle == null && !preview) return
-    val degrees = vehicle?.headingDegrees?.takeIf { it.isFinite() && it in 0f..360f }
-    val raw = vehicle?.headingRaw
+private fun CourseChip(vehicle: VehicleLocation?, preview: Boolean, now: Long) {
+    val fix = vehicle?.takeIf { it.positionFresh(now) }
+    val degrees = fix?.headingDegrees?.takeIf { it.isFinite() && it in 0f..360f }
+    val raw = fix?.headingRaw
     val label = when {
         degrees != null -> "${degrees.roundToInt()}°"
         raw != null -> "$raw"
         else -> "—"
     }
-    val detail = if (degrees != null) (vehicle?.source ?: "CAR") else "${vehicle?.source ?: "CAR"} · raw"
+    val detail = if (degrees != null) (fix?.source ?: "CAR")
+        else if (raw != null) "${fix?.source ?: "CAR"} · raw"
+        else "${vehicle?.source ?: "CAR"} · NO FIX"
     Chip(CarIcons.Rotate, label, detail)
 }
 
