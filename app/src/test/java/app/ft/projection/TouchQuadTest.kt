@@ -3,6 +3,7 @@ package app.ft.projection
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TouchQuadTest {
@@ -34,8 +35,8 @@ class TouchQuadTest {
             assertEquals(expected, quad.map(p.x.toInt(), p.y.toInt(), width, height))
         }
         val midpoint = quad.map(971, 473, width, height)
-        assertEquals(1200, midpoint.first, 55)
-        assertEquals(600, midpoint.second, 55)
+        assertTrue(kotlin.math.abs(1200 - midpoint.first) <= 55)
+        assertTrue(kotlin.math.abs(600 - midpoint.second) <= 55)
         val persisted = TouchQuad.deserialize(quad.serialize(), width, height)
         assertNotNull(persisted)
         assertEquals(quad.map(400, 400, width, height), persisted!!.map(400, 400, width, height))
