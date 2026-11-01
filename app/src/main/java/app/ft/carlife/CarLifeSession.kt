@@ -86,6 +86,8 @@ class CarLifeSession(
     @Volatile private var songInfoAllowed = true
     @Volatile private var newVehicle = false
     private var frames = 0L
+    private var carGpsPackets = 0L
+    private var carSpeedPackets = 0L
     private var videoProfile: VideoProfile? = null
     private var videoProfileGeneration = 0
     private val feed = VideoFeed(::videoPacket, ::videoEmpty)
@@ -147,6 +149,8 @@ class CarLifeSession(
         videoProfile = null
         projecting = false
         gear = -1
+        carGpsPackets = 0L
+        carSpeedPackets = 0L
         videoTimer?.cancel()
         videoTimer = null
         encryptProbe?.cancel()
@@ -496,11 +500,15 @@ class CarLifeSession(
             CarLifeProtocol.CMD_VEHICLE_BACKGROUND -> DiagLog.i(tag, "the car moved CarLife to the background")
             CarLifeProtocol.CMD_CAR_VELOCITY -> {
                 val ok = CarLifeCarSensors.onSpeed(c.payload)
-                DiagLog.d(tag, "BAIDU vehicle speed frame bytes=${c.payload.size} parsed=$ok")
+                carSpeedPackets++
+                if (carSpeedPackets <= 3L || carSpeedPackets and (carSpeedPackets - 1L) == 0L)
+                    DiagLog.d(tag, "BAIDU vehicle speed frames=$carSpeedPackets bytes=${c.payload.size} parsed=$ok")
             }
             CarLifeProtocol.CMD_CAR_GPS -> {
                 val ok = CarLifeCarSensors.onGps(c.payload)
-                DiagLog.d(tag, "BAIDU vehicle GPS frame bytes=${c.payload.size} parsed=$ok")
+                carGpsPackets++
+                if (carGpsPackets <= 3L || carGpsPackets and (carGpsPackets - 1L) == 0L)
+                    DiagLog.d(tag, "BAIDU vehicle GPS frames=$carGpsPackets bytes=${c.payload.size} parsed=$ok")
             }
             CarLifeProtocol.CMD_CAR_GYROSCOPE, CarLifeProtocol.CMD_CAR_ACCELERATION,
             CarLifeProtocol.CMD_CAR_OIL, CarLifeProtocol.CMD_ERROR_CODE, CarLifeProtocol.CMD_BT_HFP_INDICATION,
