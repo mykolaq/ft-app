@@ -19,8 +19,8 @@ android {
         applicationId = "app.ft.xa60"
         minSdk = 29
         targetSdk = 36
-        versionCode = 158
-        versionName = "3.9.44-xa60-4point-xy-test"
+        versionCode = 159
+        versionName = "3.9.45-xa60-mirror-rotation-touch"
     }
 
     signingConfigs {
