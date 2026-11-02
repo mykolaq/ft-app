@@ -36,7 +36,7 @@ class SuperCastProvider : ContentProvider() {
 
     companion object {
         private const val TAG = "SuperCast"
-        const val AUTHORITY = "app.ft.supercast"
+        const val AUTHORITY = "app.ft.xa60.supercast"
         const val GET_CLIENT = "getClient"
         private const val SHELL_UID = 2000
     }

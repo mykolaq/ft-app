@@ -5,6 +5,7 @@ import android.app.ActivityManager
 import android.app.AppOpsManager
 import android.app.usage.UsageStatsManager
 import android.bluetooth.BluetoothManager
+import android.bluetooth.BluetoothProfile
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -106,6 +107,8 @@ object DiagSnapshot {
             }
         })
         add(line("carlife state") { CarLifeService.state.value })
+        add(line("car protocol") { Prefs(c).carProtocol.id })
+        add(line("iccoa state") { app.ft.iccoa.IccoaService.state.value })
         add(line("android auto bridge state") { AaHeadUnitService.state.value })
     }
 
@@ -147,6 +150,15 @@ object DiagSnapshot {
         })
         val adapter = (c.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
         add(line("bluetooth") { "on=${adapter?.isEnabled} state=${adapter?.state} scanning=${runCatching { adapter?.isDiscovering }.getOrNull()}" })
+        add(line("bluetooth calls HFP") {
+            when (adapter?.getProfileConnectionState(BluetoothProfile.HEADSET)) {
+                BluetoothProfile.STATE_CONNECTED -> "connected (at least one device; see BluetoothCalls log for names)"
+                BluetoothProfile.STATE_CONNECTING -> "connecting"
+                BluetoothProfile.STATE_DISCONNECTING -> "disconnecting"
+                BluetoothProfile.STATE_DISCONNECTED -> "disconnected"
+                else -> "unavailable"
+            }
+        })
         val carAddress = runCatching { c.getSharedPreferences("ft", Context.MODE_PRIVATE).getString("carBtAddress", "") }.getOrNull().orEmpty()
         runCatching { adapter?.bondedDevices?.toList().orEmpty() }.getOrElse { add("paired: error ${it.message}"); emptyList() }.forEach { d ->
             add(line("paired") {
@@ -163,6 +175,8 @@ object DiagSnapshot {
         add(line("android auto") { pkg(c, GEARHEAD)?.let { "${it.versionName} (code ${if (Build.VERSION.SDK_INT >= 28) it.longVersionCode else 0}) enabled=${it.applicationInfo?.enabled}" } ?: "not installed" })
         add(line("head unit server ${prefsInt(c, "aaSelfPort", 5277)}") { if (app.ft.aa.AaInstaller.serverRunning(prefsInt(c, "aaSelfPort", 5277))) "running" else "off" })
         add(line("ft head unit listener") { AaHeadUnitService.state.value.listening })
+        add(line("last android auto transport close") { AaHeadUnitService.lastDisconnect })
+        add(line("android auto battery optimization ignored") { c.getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(GEARHEAD) })
         add(line("android auto installed by") { app.ft.aa.AaInstaller.installerOfAndroidAuto(c) ?: "unknown" })
         listOf("com.baidu.carlife", "com.huawei.hicar").forEach { p ->
             add(line("other car app $p") { pkg(c, p)?.let { "${it.versionName} installed" } ?: "not installed" })

@@ -25,7 +25,7 @@ object Helper {
         "env CLASSPATH=$apk app_process / $MAIN token=$token"
 
     fun computerCommand(token: String): String =
-        "adb shell \"CLASSPATH=\$(pm path app.ft | cut -d: -f2) app_process / $MAIN token=$token &\""
+        "adb shell \"CLASSPATH=\$(pm path app.ft.xa60 | cut -d: -f2) app_process / $MAIN token=$token &\""
 
     fun running(): Boolean =
         Root.run("pgrep -f $MAIN")?.stdout?.trim()?.isNotEmpty() == true

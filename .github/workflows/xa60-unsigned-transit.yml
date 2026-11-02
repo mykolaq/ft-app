@@ -1,0 +1,72 @@
+name: XA60 unsigned transit APK for offline owner signing
+
+on:
+  push:
+    branches: [openivi/xa60-iccoa-build153]
+    paths:
+      - 'app/**'
+      - '.github/workflows/xa60-unsigned-transit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: xa60-unsigned-transit
+  cancel-in-progress: true
+
+jobs:
+  assemble-transit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      GRADLE_USER_HOME: /home/runner/.gradle-ft-xa60-transit
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+      - name: Bounded Gradle profile
+        shell: bash
+        run: |
+          mkdir -p "$GRADLE_USER_HOME"
+          cat > "$GRADLE_USER_HOME/gradle.properties" <<'EOF'
+          org.gradle.jvmargs=-Xmx1024m -XX:MaxMetaspaceSize=512m -Dfile.encoding=UTF-8
+          org.gradle.daemon=false
+          org.gradle.parallel=false
+          org.gradle.workers.max=1
+          kotlin.compiler.execution.strategy=in-process
+          kotlin.incremental=false
+          EOF
+      - name: Build release-mode unsigned APK for offline signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew --no-daemon --max-workers=1 :app:testDebugUnitTest :app:assembleUnsignedTransit
+          apk=$(find app/build/outputs/apk/unsignedTransit -maxdepth 1 -name '*unsigned*.apk' -type f -print -quit)
+          test -n "$apk"
+          test -s "$apk"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" | grep -m1 "^package: name='app.ft.xa60' versionCode='154'"
+          if "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" | grep -q '^application-debuggable'; then
+            echo "Refusing debuggable APK" >&2
+            exit 1
+          fi
+          mkdir -p transit
+          cp "$apk" transit/ft-xa60-release-mode-unsigned.apk
+          sha256sum transit/ft-xa60-release-mode-unsigned.apk
+          echo "Source SHA: $GITHUB_SHA"
+      - name: Save unsigned transport artifact for local owner signature
+        uses: actions/upload-artifact@v4
+        with:
+          name: ft-xa60-unsigned-transit-${{ github.sha }}
+          path: transit/ft-xa60-release-mode-unsigned.apk
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
