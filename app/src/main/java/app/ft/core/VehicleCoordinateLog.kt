@@ -33,6 +33,10 @@ internal object VehicleCoordinateLog {
 
     /** Scrub old VehicleGPS records when the current setting is off during ZIP export. */
     fun scrubStoredLine(line: String): String {
+        // FT's old diagnostic logs also contain opaque RX/TX payload dumps that may
+        // carry position data. Do not export those bytes without current opt-in.
+        if (line.contains(": RX ")) return line.substringBefore(": RX ") + ": RX payload=<redacted>"
+        if (line.contains(": TX ")) return line.substringBefore(": TX ") + ": TX payload=<redacted>"
         if (!line.contains("VehicleGPS:", ignoreCase = true)) return line
         return coordinateValues.replace(line) { match ->
             "${match.groupValues[1]}=<redacted>"

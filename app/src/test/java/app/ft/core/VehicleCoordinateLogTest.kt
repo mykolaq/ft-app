@@ -45,4 +45,11 @@ class VehicleCoordinateLogTest {
         assertTrue(redacted.contains("speedRaw=10"))
         assertEquals("OTHER: latitude=55.7558260", VehicleCoordinateLog.scrubStoredLine("OTHER: latitude=55.7558260"))
     }
+
+    @Test fun opaqueProtocolPayloadCannotLeakFromOldLogs() {
+        val old = "11:11 D CarLife: RX CMD_CAR_GPS  0A FF 23 4C"
+        assertEquals("11:11 D CarLife: RX payload=<redacted>", VehicleCoordinateLog.scrubStoredLine(old))
+        val outbound = "11:11 D AA: TX SENSOR_EVENT  09 00 01"
+        assertEquals("11:11 D AA: TX payload=<redacted>", VehicleCoordinateLog.scrubStoredLine(outbound))
+    }
 }
