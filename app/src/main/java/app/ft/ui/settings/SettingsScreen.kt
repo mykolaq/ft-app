@@ -309,6 +309,11 @@ private fun PageContent(page: SettingsPage) {
             IntSetting(stringResource(R.string.aa_density), p.aaDensity) { p.aaDensity = it }
         }
         SettingsPage.ADVANCED -> {
+            BoolSetting(
+                stringResource(R.string.vehicle_coordinate_log),
+                p.vehicleCoordinateLogging,
+                detail = stringResource(R.string.vehicle_coordinate_log_about)
+            ) { p.vehicleCoordinateLogging = it }
             Text(stringResource(R.string.adv_ports), style = MaterialTheme.typography.labelLarge)
             IntSetting(stringResource(R.string.adv_command), p.cmdPort) { p.cmdPort = it }
             IntSetting(stringResource(R.string.adv_video), p.videoPort) { p.videoPort = it }

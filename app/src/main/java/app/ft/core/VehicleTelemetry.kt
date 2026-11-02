@@ -1,5 +1,7 @@
 package app.ft.core
 
+import app.ft.FTApp
+
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -51,16 +53,11 @@ object VehicleTelemetry {
             ((sample.displayLatitude != null && sample.displayLongitude != null) ||
              (sample.rawLatitude != null && sample.rawLongitude != null))
         val decision = logSampler.accept(sample.source, now, hasFix) ?: return
-        fun dec(value: Double?) = value?.let { String.format(java.util.Locale.US, "%.7f", it) } ?: "NA"
-        runCatching { DiagLog.i("VehicleGPS", "reason=${decision.reason} mode=${if (decision.fast) "EVENT_1HZ" else "NORMAL_10S"} " +
-            "protocol=${sample.source} timeMs=$now " +
-            "latitude=${dec(sample.latitude)} longitude=${dec(sample.longitude)} " +
-            "rawLat=${sample.rawLatitude ?: "NA"} rawLon=${sample.rawLongitude ?: "NA"} " +
-            "speedRaw=${sample.speedRaw ?: "NA"} headingRaw=${sample.headingRaw ?: "NA"} " +
-            "satUsed=${sample.satellitesUsed ?: "NA"} satVisible=${sample.satellitesVisible ?: "NA"} " +
-            "carTimestamp=${sample.deviceTimestampRaw ?: "NA"} " +
-            "positionAgeMs=${if (sample.positionAtMs == 0L) -1 else now - sample.positionAtMs} " +
-            "units=${sample.coordinatesUnit}/${sample.speedUnit}/${sample.headingUnit}") }
+        runCatching {
+            DiagLog.i("VehicleGPS", VehicleCoordinateLog.format(
+                sample, decision, FTApp.instance.prefs.vehicleCoordinateLogging
+            ))
+        }
     }
 
     @Synchronized fun publish(location: VehicleLocation) {

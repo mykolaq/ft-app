@@ -113,9 +113,18 @@ object DiagSnapshot {
     }
 
     fun settings(c: Context): List<String> = runCatching {
+        val recordCoordinates = Prefs(c).vehicleCoordinateLogging
         listOf("(only settings that were changed are listed, the rest are at their defaults)") +
             c.getSharedPreferences("ft", Context.MODE_PRIVATE).all.toSortedMap().map { (k, v) ->
-                "$k = " + if (SECRET.containsMatchIn(k) && v?.toString()?.isNotEmpty() == true) "<hidden, ${v.toString().length} chars>" else v.toString()
+                val privateLocation = !recordCoordinates &&
+                    (k.contains("latitude", ignoreCase = true) ||
+                     k.contains("longitude", ignoreCase = true) ||
+                     k.contains("coordinate", ignoreCase = true))
+                "$k = " + when {
+                    privateLocation -> "<redacted>"
+                    SECRET.containsMatchIn(k) && v?.toString()?.isNotEmpty() == true -> "<hidden, ${v.toString().length} chars>"
+                    else -> v.toString()
+                }
             }
     }.getOrElse { listOf("settings: error ${it.message}") }
 

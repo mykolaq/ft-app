@@ -474,4 +474,6 @@
     <string name="iccoa_mic_gain">Усиление микрофона ICCOA</string>
     <string name="iccoa_mic_gain_value">×%1$d</string>
     <string name="iccoa_mic_gain_about">Усиливает микрофон магнитолы для Android Auto. ×1 сохраняет исходный уровень. Можно выбрать от ×1 до ×16; высокие значения могут искажать речь. Применяется со следующего голосового запроса.</string>
+    <string name="vehicle_coordinate_log">Записывать координаты GPS в отчёт</string>
+    <string name="vehicle_coordinate_log_about">По умолчанию выключено. Включайте только для нужного испытания: координаты раскрывают маршруты и местоположение. Навигация работает независимо. Выключение не удаляет ранее записанные координаты и сохранённые отчёты.</string>
 </resources>
